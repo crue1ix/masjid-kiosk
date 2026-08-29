@@ -1,0 +1,481 @@
+@import url('https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --bg-deep: #081917;
+  --bg-panel: #0F2C28;
+  --bg-panel-light: #16403A;
+  --teal-mid: #1C6E64;
+  --gold: #C9A227;
+  --gold-light: #E4C765;
+  --text-light: #F5F1E6;
+  --text-muted: #A9C0BA;
+  --radius: 18px;
+  --star-size: 120px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+/* Repeating 8-point star (khatam) watermark, used as background texture */
+.star-field {
+  position: absolute;
+  inset: 0;
+  opacity: 0.05;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C9A227' stroke-width='1.5'%3E%3Cpath d='M60 10 L70 40 L100 30 L80 55 L110 60 L80 65 L100 90 L70 80 L60 110 L50 80 L20 90 L40 65 L10 60 L40 55 L20 30 L50 40 Z'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: var(--star-size) var(--star-size);
+}
+
+/* ============================================================
+   AD REEL VIEW
+   ============================================================ */
+#ad-view {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 5;
+}
+
+#ad-view.hidden { display: none; }
+
+#ad-media-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#ad-media-wrap img,
+#ad-media-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: fadeIn 0.6s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+#ad-empty-state {
+  text-align: center;
+  color: var(--text-muted);
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 2rem;
+  padding: 2rem;
+}
+
+.tap-hint {
+  position: absolute;
+  bottom: 5%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(8, 25, 23, 0.75);
+  border: 1px solid var(--gold);
+  color: var(--gold-light);
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 1.3rem;
+  padding: 0.9rem 2.2rem;
+  border-radius: 999px;
+  letter-spacing: 0.03em;
+  animation: pulse 2.4s ease-in-out infinite;
+  z-index: 6;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.7; transform: translateX(-50%) scale(1); }
+  50% { opacity: 1; transform: translateX(-50%) scale(1.04); }
+}
+
+/* Star-wipe transition overlay, shown briefly when switching modes */
+#star-wipe {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-deep);
+  opacity: 0;
+}
+
+#star-wipe.playing {
+  animation: wipeInOut 0.7s ease forwards;
+}
+
+#star-wipe svg {
+  width: 40vmin;
+  height: 40vmin;
+  transform: scale(0);
+}
+
+#star-wipe.playing svg {
+  animation: starScale 0.7s ease forwards;
+}
+
+@keyframes wipeInOut {
+  0% { opacity: 0; }
+  35% { opacity: 1; }
+  65% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes starScale {
+  0% { transform: scale(0) rotate(0deg); }
+  50% { transform: scale(1.4) rotate(45deg); }
+  100% { transform: scale(2.6) rotate(70deg); }
+}
+
+/* ============================================================
+   HUB VIEW
+   ============================================================ */
+#hub-view {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-deep);
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+}
+
+#hub-view.hidden { display: none; }
+
+.hub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2.2rem 3rem 1.2rem;
+  position: relative;
+  z-index: 2;
+}
+
+.hub-title {
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 2.4rem;
+  color: var(--gold-light);
+  letter-spacing: 0.02em;
+}
+
+.hub-subtitle {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-top: 0.2rem;
+}
+
+.back-to-ads {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  background: var(--bg-panel-light);
+  color: var(--text-light);
+  border: 1px solid var(--teal-mid);
+  border-radius: 999px;
+  padding: 0.8rem 1.8rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.hub-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 1.6rem;
+  padding: 0 3rem 3rem;
+  position: relative;
+  z-index: 2;
+}
+
+.hub-tile {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-light);
+  border-radius: var(--radius);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.hub-tile:active {
+  transform: scale(0.97);
+  border-color: var(--gold);
+}
+
+.hub-tile::after {
+  content: '';
+  position: absolute;
+  top: -20px;
+  right: -20px;
+  width: 70px;
+  height: 70px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='70' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C9A227' stroke-width='2'%3E%3Cpath d='M60 10 L70 40 L100 30 L80 55 L110 60 L80 65 L100 90 L70 80 L60 110 L50 80 L20 90 L40 65 L10 60 L40 55 L20 30 L50 40 Z'/%3E%3C/g%3E%3C/svg%3E");
+  opacity: 0.35;
+}
+
+.hub-tile-label {
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 1.5rem;
+  color: var(--text-light);
+}
+
+.hub-tile-detail {
+  color: var(--text-muted);
+  font-size: 1rem;
+  margin-top: 0.6rem;
+  line-height: 1.4;
+}
+
+.hub-tile-icon {
+  font-size: 2.4rem;
+  margin-bottom: 0.5rem;
+}
+
+/* Detail panel (opens over the grid when a tile is tapped) */
+#hub-detail {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-deep);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 2.2rem 3rem;
+}
+
+#hub-detail.hidden { display: none; }
+
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.detail-back {
+  background: var(--bg-panel-light);
+  color: var(--text-light);
+  border: 1px solid var(--teal-mid);
+  border-radius: 999px;
+  padding: 0.7rem 1.4rem;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.detail-title {
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 2rem;
+  color: var(--gold-light);
+}
+
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  font-size: 1.15rem;
+  line-height: 1.7;
+}
+
+.detail-body img {
+  max-width: 100%;
+  border-radius: var(--radius);
+}
+
+.prayer-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.2rem;
+}
+
+.prayer-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-light);
+  border-radius: var(--radius);
+  padding: 1.6rem;
+  text-align: center;
+}
+
+.prayer-card .name {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--gold-light);
+  font-size: 1.3rem;
+}
+
+.prayer-card .time {
+  font-size: 1.8rem;
+  margin-top: 0.4rem;
+  font-weight: 600;
+}
+
+.announcement-item {
+  border-bottom: 1px solid var(--bg-panel-light);
+  padding: 1rem 0;
+}
+
+.announcement-item:last-child { border-bottom: none; }
+
+.announcement-date {
+  color: var(--gold);
+  font-size: 0.9rem;
+  margin-bottom: 0.2rem;
+}
+
+/* ============================================================
+   ADMIN PAGE (upload interface)
+   ============================================================ */
+.admin-body {
+  overflow-y: auto;
+  height: 100%;
+  padding: 2rem;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.admin-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-light);
+  border-radius: var(--radius);
+  padding: 2rem;
+  margin-bottom: 1.5rem;
+}
+
+.admin-card h1, .admin-card h2 {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--gold-light);
+  margin-top: 0;
+}
+
+.admin-field {
+  margin-bottom: 1.2rem;
+}
+
+.admin-field label {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+}
+
+.admin-field input[type="text"],
+.admin-field input[type="email"],
+.admin-field input[type="password"],
+.admin-field input[type="number"],
+.admin-field textarea {
+  width: 100%;
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--teal-mid);
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+}
+
+.admin-field input[type="file"] {
+  color: var(--text-muted);
+}
+
+.btn {
+  background: var(--gold);
+  color: var(--bg-deep);
+  border: none;
+  border-radius: 999px;
+  padding: 0.9rem 2rem;
+  font-family: 'Inter', sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.btn:disabled { opacity: 0.5; cursor: default; }
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-light);
+  border: 1px solid var(--teal-mid);
+}
+
+.btn-danger {
+  background: transparent;
+  color: #E4756B;
+  border: 1px solid #6E2E29;
+}
+
+.ad-list-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-bottom: 1px solid var(--bg-panel-light);
+}
+
+.ad-list-item:last-child { border-bottom: none; }
+
+.ad-list-thumb {
+  width: 90px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: var(--bg-deep);
+  flex-shrink: 0;
+}
+
+.ad-list-info { flex: 1; }
+.ad-list-info .fname { font-weight: 600; }
+.ad-list-info .meta { color: var(--text-muted); font-size: 0.85rem; }
+
+.progress-bar {
+  height: 8px;
+  background: var(--bg-deep);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.6rem;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: var(--gold);
+  width: 0%;
+  transition: width 0.2s ease;
+}
+
+.status-msg {
+  font-size: 0.9rem;
+  margin-top: 0.6rem;
+}
+
+.status-msg.error { color: #E4756B; }
+.status-msg.success { color: #7EC8A9; }
+
+.toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .hub-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+  .prayer-grid { grid-template-columns: repeat(2, 1fr); }
+}
