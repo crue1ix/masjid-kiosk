@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Masjid Al-Hayy Kiosk</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="star-field"></div>
+
+<!-- ===================== AD REEL VIEW ===================== -->
+<div id="ad-view">
+  <div id="ad-media-wrap">
+    <div id="ad-empty-state">
+      No ads yet.<br>
+      Upload one from the admin page to get started.
+    </div>
+  </div>
+  <div class="tap-hint">Tap the screen to explore</div>
+</div>
+
+<!-- ===================== STAR WIPE TRANSITION ===================== -->
+<div id="star-wipe">
+  <svg viewBox="0 0 120 120">
+    <path fill="#C9A227" d="M60 10 L70 40 L100 30 L80 55 L110 60 L80 65 L100 90 L70 80 L60 110 L50 80 L20 90 L40 65 L10 60 L40 55 L20 30 L50 40 Z"/>
+  </svg>
+</div>
+
+<!-- ===================== HUB VIEW ===================== -->
+<div id="hub-view" class="hidden">
+  <div class="hub-header">
+    <div>
+      <div class="hub-title" id="hub-masjid-name">Masjid Al-Hayy</div>
+      <div class="hub-subtitle">Tap a tile to explore</div>
+    </div>
+    <button class="back-to-ads" id="btn-back-to-ads">← Back to ads</button>
+  </div>
+
+  <div class="hub-grid" id="hub-grid">
+    <div class="hub-tile" data-panel="prayer">
+      <div>
+        <div class="hub-tile-icon">🕌</div>
+        <div class="hub-tile-label">Prayer Times</div>
+      </div>
+      <div class="hub-tile-detail">Today's five daily prayers</div>
+    </div>
+    <div class="hub-tile" data-panel="map">
+      <div>
+        <div class="hub-tile-icon">🗺️</div>
+        <div class="hub-tile-label">Masjid Map</div>
+      </div>
+      <div class="hub-tile-detail">Find your way around</div>
+    </div>
+    <div class="hub-tile" data-panel="announcements">
+      <div>
+        <div class="hub-tile-icon">📣</div>
+        <div class="hub-tile-label">Announcements</div>
+      </div>
+      <div class="hub-tile-detail">Latest updates from the masjid</div>
+    </div>
+    <div class="hub-tile" data-panel="events">
+      <div>
+        <div class="hub-tile-icon">📅</div>
+        <div class="hub-tile-label">Events</div>
+      </div>
+      <div class="hub-tile-detail">Upcoming classes & programs</div>
+    </div>
+    <div class="hub-tile" data-panel="donate">
+      <div>
+        <div class="hub-tile-icon">🤲</div>
+        <div class="hub-tile-label">Donate</div>
+      </div>
+      <div class="hub-tile-detail">Support the masjid</div>
+    </div>
+    <div class="hub-tile" data-panel="about">
+      <div>
+        <div class="hub-tile-icon">ℹ️</div>
+        <div class="hub-tile-label">About & Contact</div>
+      </div>
+      <div class="hub-tile-detail">Address, phone, socials</div>
+    </div>
+  </div>
+
+  <!-- Detail panel, shown when a tile is tapped -->
+  <div id="hub-detail" class="hidden">
+    <div class="detail-header">
+      <button class="detail-back" id="btn-detail-back">← Back</button>
+      <div class="detail-title" id="detail-title">Title</div>
+    </div>
+    <div class="detail-body" id="detail-body"></div>
+  </div>
+</div>
+
+<!-- Firebase (compat SDK — no build step needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script>
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+document.getElementById('hub-masjid-name').textContent = KIOSK_CONFIG.masjidName;
+
+/* ============================================================
+   AD REEL
+   ============================================================ */
+let ads = [];
+let currentAdIndex = 0;
+let adTimer = null;
+const adView = document.getElementById('ad-view');
+const adWrap = document.getElementById('ad-media-wrap');
+
+// Live-updates whenever ads are added/removed/edited from admin.html
+db.collection('ads').where('active', '==', true).orderBy('order').onSnapshot(snapshot => {
+  ads = snapshot.docs.map(doc => doc.data());
+  currentAdIndex = 0;
+  playCurrentAd();
+});
+
+function playCurrentAd() {
+  clearTimeout(adTimer);
+  adWrap.innerHTML = '';
+
+  if (ads.length === 0) {
+    adWrap.innerHTML = '<div id="ad-empty-state">No ads yet.<br>Upload one from the admin page to get started.</div>';
+    return;
+  }
+
+  const ad = ads[currentAdIndex % ads.length];
+
+  if (ad.type === 'video') {
+    const video = document.createElement('video');
+    video.src = ad.url;
+    video.autoplay = true;
+    video.muted = true;
+    video.playsInline = true;
+    video.onended = advanceAd;
+    // Safety net in case a video fails to load or play
+    video.onerror = advanceAd;
+    adWrap.appendChild(video);
+  } else {
+    const img = document.createElement('img');
+    img.src = ad.url;
+    adWrap.appendChild(img);
+    const duration = (ad.duration || KIOSK_CONFIG.defaultImageDuration) * 1000;
+    adTimer = setTimeout(advanceAd, duration);
+  }
+}
+
+function advanceAd() {
+  currentAdIndex = (currentAdIndex + 1) % Math.max(ads.length, 1);
+  playCurrentAd();
+}
+
+/* ============================================================
+   MODE SWITCHING (ad reel <-> hub) with star-wipe transition
+   ============================================================ */
+const hubView = document.getElementById('hub-view');
+const starWipe = document.getElementById('star-wipe');
+const hubGrid = document.getElementById('hub-grid');
+const hubDetail = document.getElementById('hub-detail');
+let hubIdleTimer = null;
+
+function playWipe(callback) {
+  starWipe.classList.add('playing');
+  setTimeout(() => {
+    callback();
+    starWipe.classList.remove('playing');
+  }, 350);
+}
+
+function openHub() {
+  playWipe(() => {
+    adView.classList.add('hidden');
+    hubView.classList.remove('hidden');
+    showHubGrid();
+    resetHubIdleTimer();
+    // Pause any playing ad video
+    const v = adWrap.querySelector('video');
+    if (v) v.pause();
+  });
+}
+
+function closeHub() {
+  clearTimeout(hubIdleTimer);
+  playWipe(() => {
+    hubView.classList.add('hidden');
+    adView.classList.remove('hidden');
+    playCurrentAd();
+  });
+}
+
+function resetHubIdleTimer() {
+  clearTimeout(hubIdleTimer);
+  hubIdleTimer = setTimeout(closeHub, KIOSK_CONFIG.hubIdleTimeoutSeconds * 1000);
+}
+
+adView.addEventListener('click', openHub);
+document.getElementById('btn-back-to-ads').addEventListener('click', closeHub);
+hubView.addEventListener('click', resetHubIdleTimer);
+hubView.addEventListener('touchstart', resetHubIdleTimer);
+
+/* ============================================================
+   HUB TILE PANELS
+   ============================================================ */
+function showHubGrid() {
+  hubGrid.classList.remove('hidden');
+  hubDetail.classList.add('hidden');
+}
+
+function showDetail(panel) {
+  hubGrid.classList.add('hidden');
+  hubDetail.classList.remove('hidden');
+  loadPanel(panel);
+}
+
+document.querySelectorAll('.hub-tile').forEach(tile => {
+  tile.addEventListener('click', () => showDetail(tile.dataset.panel));
+});
+
+document.getElementById('btn-detail-back').addEventListener('click', showHubGrid);
+
+function loadPanel(panel) {
+  const title = document.getElementById('detail-title');
+  const body = document.getElementById('detail-body');
+  body.innerHTML = '<p>Loading…</p>';
+
+  if (panel === 'prayer') {
+    title.textContent = 'Prayer Times';
+    loadPrayerTimes(body);
+  } else if (panel === 'map') {
+    title.textContent = 'Masjid Map';
+    // Replace assets/map.jpg with your actual floor plan / site map image
+    body.innerHTML = '<img src="assets/map.jpg" alt="Masjid map" onerror="this.outerHTML=\'<p>Add your map image at assets/map.jpg to show it here.</p>\'">';
+  } else if (panel === 'announcements') {
+    title.textContent = 'Announcements';
+    loadListDoc('hub_content/announcements', body, 'No announcements right now.');
+  } else if (panel === 'events') {
+    title.textContent = 'Events';
+    loadListDoc('hub_content/events', body, 'No upcoming events posted yet.');
+  } else if (panel === 'donate') {
+    title.textContent = 'Donate';
+    loadListDoc('hub_content/donate', body, 'Donation info coming soon.', true);
+  } else if (panel === 'about') {
+    title.textContent = 'About & Contact';
+    loadListDoc('hub_content/about', body, 'Contact info coming soon.', true);
+  }
+}
+
+// Reads a Firestore doc at hub_content/{id} with fields: items (array of {date, text})
+// or, for simple pages, a single "text" field.
+function loadListDoc(path, body, emptyMessage, simpleText) {
+  const [collection, id] = path.split('/');
+  db.collection(collection).doc(id).get().then(doc => {
+    if (!doc.exists) {
+      body.innerHTML = `<p>${emptyMessage}</p>`;
+      return;
+    }
+    const data = doc.data();
+    if (simpleText) {
+      body.innerHTML = `<p>${(data.text || emptyMessage).replace(/\n/g, '<br>')}</p>`;
+      return;
+    }
+    const items = data.items || [];
+    if (items.length === 0) {
+      body.innerHTML = `<p>${emptyMessage}</p>`;
+      return;
+    }
+    body.innerHTML = items.map(item => `
+      <div class="announcement-item">
+        <div class="announcement-date">${item.date || ''}</div>
+        <div>${item.text || ''}</div>
+      </div>
+    `).join('');
+  }).catch(() => {
+    body.innerHTML = `<p>${emptyMessage}</p>`;
+  });
+}
+
+function loadPrayerTimes(body) {
+  const today = new Date().toISOString().slice(0, 10);
+  const cacheKey = 'prayerTimes_' + today;
+  const cached = localStorage.getItem(cacheKey);
+
+  if (cached) {
+    renderPrayerTimes(body, JSON.parse(cached));
+    return;
+  }
+
+  const { latitude, longitude, calculationMethod } = KIOSK_CONFIG;
+  const url = `https://api.aladhan.com/v1/timings?latitude=${latitude}&longitude=${longitude}&method=${calculationMethod}`;
+
+  fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      const t = data.data.timings;
+      localStorage.setItem(cacheKey, JSON.stringify(t));
+      renderPrayerTimes(body, t);
+    })
+    .catch(() => {
+      body.innerHTML = '<p>Could not load prayer times — check the internet connection.</p>';
+    });
+}
+
+function renderPrayerTimes(body, t) {
+  const order = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha', 'Sunrise'];
+  body.innerHTML = `<div class="prayer-grid">` + order.map(name => `
+    <div class="prayer-card">
+      <div class="name">${name}</div>
+      <div class="time">${t[name]}</div>
+    </div>
+  `).join('') + `</div>`;
+}
+</script>
+</body>
+</html>
