@@ -14,7 +14,7 @@
 <div id="ad-view">
   <div id="ad-media-wrap">
     <div id="ad-empty-state">
-      Its empty here<br>
+      No ads yet.<br>
       Upload one from the admin page to get started.
     </div>
   </div>
@@ -35,7 +35,7 @@
       <div class="hub-title" id="hub-masjid-name">Masjid Al-Hayy</div>
       <div class="hub-subtitle">Tap a tile to explore</div>
     </div>
-    <button class="back-to-ads" id="btn-back-to-ads">← Back</button>
+    <button class="back-to-ads" id="btn-back-to-ads">← Back to ads</button>
   </div>
 
   <div class="hub-grid" id="hub-grid">
@@ -113,9 +113,11 @@ let adTimer = null;
 const adView = document.getElementById('ad-view');
 const adWrap = document.getElementById('ad-media-wrap');
 
-// Live-updates whenever ads are added/removed/edited from admin.html
-db.collection('ads').where('active', '==', true).orderBy('order').onSnapshot(snapshot => {
-  ads = snapshot.docs.map(doc => doc.data());
+// Live-updates whenever ads are added/removed/edited from admin.html.
+// (Filtering "active" here in JS, rather than in the query, avoids needing
+// a Firestore composite index.)
+db.collection('ads').orderBy('order').onSnapshot(snapshot => {
+  ads = snapshot.docs.map(doc => doc.data()).filter(ad => ad.active);
   currentAdIndex = 0;
   playCurrentAd();
 });
@@ -125,7 +127,7 @@ function playCurrentAd() {
   adWrap.innerHTML = '';
 
   if (ads.length === 0) {
-    adWrap.innerHTML = '<div id="ad-empty-state">Its empty here<br>Upload one from the admin page to get started.</div>';
+    adWrap.innerHTML = '<div id="ad-empty-state">No ads yet.<br>Upload one from the admin page to get started.</div>';
     return;
   }
 
