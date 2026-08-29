@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Masjid Kiosk — Admin</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html, body { overflow-y: auto; height: auto; min-height: 100%; }
+</style>
+</head>
+<body>
+
+<div class="admin-body">
+
+  <!-- LOGIN CARD -->
+  <div class="admin-card" id="login-card">
+    <h1>Sign in</h1>
+    <div class="admin-field">
+      <label>Email</label>
+      <input type="email" id="login-email">
+    </div>
+    <div class="admin-field">
+      <label>Password</label>
+      <input type="password" id="login-password">
+    </div>
+    <button class="btn" id="btn-login">Sign in</button>
+    <div class="status-msg error" id="login-error"></div>
+  </div>
+
+  <!-- UPLOAD + LIST (shown after login) -->
+  <div id="admin-content" class="hidden">
+
+    <div class="admin-card">
+      <h1>Kiosk Ads — <span id="masjid-name-label"></span></h1>
+      <button class="btn btn-secondary" id="btn-logout">Sign out</button>
+    </div>
+
+    <div class="admin-card">
+      <h2>Upload a new ad</h2>
+      <div class="admin-field">
+        <label>Image or video file</label>
+        <input type="file" id="upload-file" accept="image/*,video/*">
+      </div>
+      <div class="admin-field">
+        <label>Title (just for your reference)</label>
+        <input type="text" id="upload-title" placeholder="e.g. Al-Noor Grocery — Ramadan special">
+      </div>
+      <div class="admin-field" id="duration-field">
+        <label>How many seconds should this stay on screen? (images only — videos play in full)</label>
+        <input type="number" id="upload-duration" value="8" min="2">
+      </div>
+      <div class="admin-field">
+        <label>Order (lower numbers play first)</label>
+        <input type="number" id="upload-order" value="1">
+      </div>
+      <button class="btn" id="btn-upload">Upload</button>
+      <div class="progress-bar" id="progress-wrap" style="display:none;">
+        <div class="progress-bar-fill" id="progress-fill"></div>
+      </div>
+      <div class="status-msg" id="upload-status"></div>
+    </div>
+
+    <div class="admin-card">
+      <h2>Current ads</h2>
+      <div id="ad-list"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<!-- Firebase (compat SDK) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+
+<script src="firebase-config.js"></script>
+<script>
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+document.getElementById('masjid-name-label').textContent = KIOSK_CONFIG.masjidName;
+
+const loginCard = document.getElementById('login-card');
+const adminContent = document.getElementById('admin-content');
+
+/* ============================================================
+   AUTH
+   ============================================================ */
+document.getElementById('btn-login').addEventListener('click', () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errorBox = document.getElementById('login-error');
+  errorBox.textContent = '';
+
+  auth.signInWithEmailAndPassword(email, password).catch(err => {
+    errorBox.textContent = err.message;
+  });
+});
+
+document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
+
+auth.onAuthStateChanged(user => {
+  if (user) {
+    loginCard.classList.add('hidden');
+    adminContent.classList.remove('hidden');
+    loadAdList();
+  } else {
+    loginCard.classList.remove('hidden');
+    adminContent.classList.add('hidden');
+  }
+});
+
+/* ============================================================
+   UPLOAD
+   ============================================================ */
+document.getElementById('btn-upload').addEventListener('click', () => {
+  const fileInput = document.getElementById('upload-file');
+  const file = fileInput.files[0];
+  const statusBox = document.getElementById('upload-status');
+  statusBox.textContent = '';
+  statusBox.className = 'status-msg';
+
+  if (!file) {
+    statusBox.textContent = 'Choose a file first.';
+    statusBox.className = 'status-msg error';
+    return;
+  }
+
+  const type = file.type.startsWith('video') ? 'video' : 'image';
+  const title = document.getElementById('upload-title').value.trim();
+  const duration = parseInt(document.getElementById('upload-duration').value, 10) || 8;
+  const order = parseInt(document.getElementById('upload-order').value, 10) || 1;
+
+  if (CLOUDINARY_CONFIG.cloudName.startsWith('PASTE_')) {
+    statusBox.textContent = 'Cloudinary isn\'t set up yet — add your cloud name and upload preset to firebase-config.js first.';
+    statusBox.className = 'status-msg error';
+    return;
+  }
+
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressFill = document.getElementById('progress-fill');
+  progressWrap.style.display = 'block';
+  document.getElementById('btn-upload').disabled = true;
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
+
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`);
+
+  xhr.upload.addEventListener('progress', e => {
+    if (e.lengthComputable) {
+      progressFill.style.width = ((e.loaded / e.total) * 100) + '%';
+    }
+  });
+
+  xhr.onload = () => {
+    if (xhr.status < 200 || xhr.status >= 300) {
+      statusBox.textContent = 'Upload failed: ' + xhr.responseText;
+      statusBox.className = 'status-msg error';
+      document.getElementById('btn-upload').disabled = false;
+      return;
+    }
+    const result = JSON.parse(xhr.responseText);
+    db.collection('ads').add({
+      url: result.secure_url,
+      type,
+      title,
+      duration,
+      order,
+      active: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(() => {
+      statusBox.textContent = 'Uploaded! It will show up on the kiosk automatically.';
+      statusBox.className = 'status-msg success';
+      fileInput.value = '';
+      document.getElementById('upload-title').value = '';
+      progressWrap.style.display = 'none';
+      progressFill.style.width = '0%';
+      document.getElementById('btn-upload').disabled = false;
+    });
+  };
+
+  xhr.onerror = () => {
+    statusBox.textContent = 'Upload failed — check your internet connection.';
+    statusBox.className = 'status-msg error';
+    document.getElementById('btn-upload').disabled = false;
+  };
+
+  xhr.send(formData);
+});
+
+/* ============================================================
+   AD LIST — toggle active / delete
+   ============================================================ */
+function loadAdList() {
+  db.collection('ads').orderBy('order').onSnapshot(snapshot => {
+    const listEl = document.getElementById('ad-list');
+    if (snapshot.empty) {
+      listEl.innerHTML = '<p>No ads uploaded yet.</p>';
+      return;
+    }
+    listEl.innerHTML = '';
+    snapshot.forEach(doc => {
+      const ad = doc.data();
+      const item = document.createElement('div');
+      item.className = 'ad-list-item';
+
+      const thumb = ad.type === 'video'
+        ? `<video class="ad-list-thumb" src="${ad.url}" muted></video>`
+        : `<img class="ad-list-thumb" src="${ad.url}">`;
+
+      item.innerHTML = `
+        ${thumb}
+        <div class="ad-list-info">
+          <div class="fname">${ad.title || '(untitled)'}</div>
+          <div class="meta">${ad.type} · order ${ad.order} ${ad.type === 'image' ? '· ' + ad.duration + 's' : ''}</div>
+        </div>
+        <label class="toggle-label">
+          <input type="checkbox" ${ad.active ? 'checked' : ''} data-id="${doc.id}" class="toggle-active">
+          Active
+        </label>
+        <button class="btn btn-danger delete-ad" data-id="${doc.id}">Delete</button>
+      `;
+      listEl.appendChild(item);
+    });
+
+    document.querySelectorAll('.toggle-active').forEach(box => {
+      box.addEventListener('change', () => {
+        db.collection('ads').doc(box.dataset.id).update({ active: box.checked });
+      });
+    });
+
+    document.querySelectorAll('.delete-ad').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('Delete this ad? This cannot be undone.')) {
+          db.collection('ads').doc(btn.dataset.id).delete();
+        }
+      });
+    });
+  });
+}
+</script>
+</body>
+</html>
