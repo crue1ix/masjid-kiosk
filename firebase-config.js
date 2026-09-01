@@ -25,7 +25,7 @@ const CLOUDINARY_CONFIG = {
 const KIOSK_CONFIG = {
   masjidName: "Masjid Al-Hayy",
 
-  // Update to your masjid's real coordinates (used for prayer times).
+// Update to your masjid's real coordinates (used for prayer times).
   // Easiest way: search your masjid on Google Maps, right-click the pin,
   // the lat/lng shown is what you copy here.
   latitude: 28.7744,

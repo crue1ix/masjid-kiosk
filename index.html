@@ -14,8 +14,8 @@
 <div id="ad-view">
   <div id="ad-media-wrap">
     <div id="ad-empty-state">
-      No ads yet.<br>
-      Upload one from the admin page to get started.
+      No content yet.<br>
+      Upload media from the admin page.
     </div>
   </div>
   <div class="tap-hint">Tap the screen to explore</div>
@@ -31,55 +31,49 @@
 <!-- ===================== HUB VIEW ===================== -->
 <div id="hub-view" class="hidden">
   <div class="hub-header">
-    <div>
-      <div class="hub-title" id="hub-masjid-name">Masjid Al-Hayy</div>
-      <div class="hub-subtitle">Tap a tile to explore</div>
+    <div class="hub-header-spacer"></div>
+    <div class="hub-header-center">
+      <img src="assets/Al-Hayy Logo.png" class="hub-logo" alt="Masjid Al-Hayy">
     </div>
-    <button class="back-to-ads" id="btn-back-to-ads">← Back to ads</button>
+    <button class="back-to-ads" id="btn-back-to-ads">← Back</button>
   </div>
 
   <div class="hub-grid" id="hub-grid">
     <div class="hub-tile" data-panel="prayer">
       <div>
-        <div class="hub-tile-icon">🕌</div>
+        <img src="assets/PrayerTimes.png" class="hub-tile-icon" alt="Prayer Times">
         <div class="hub-tile-label">Prayer Times</div>
       </div>
-      <div class="hub-tile-detail">Today's five daily prayers</div>
     </div>
     <div class="hub-tile" data-panel="map">
       <div>
-        <div class="hub-tile-icon">🗺️</div>
+        <img src="assets/Masjid Map.png" class="hub-tile-icon" alt="Masjid Map">
         <div class="hub-tile-label">Masjid Map</div>
       </div>
-      <div class="hub-tile-detail">Find your way around</div>
     </div>
     <div class="hub-tile" data-panel="announcements">
       <div>
-        <div class="hub-tile-icon">📣</div>
+        <img src="assets/Announcements.png" class="hub-tile-icon" alt="Announcements">
         <div class="hub-tile-label">Announcements</div>
       </div>
-      <div class="hub-tile-detail">Latest updates from the masjid</div>
     </div>
     <div class="hub-tile" data-panel="events">
       <div>
-        <div class="hub-tile-icon">📅</div>
+        <img src="assets/Calender.png" class="hub-tile-icon" alt="Events">
         <div class="hub-tile-label">Events</div>
       </div>
-      <div class="hub-tile-detail">Upcoming classes & programs</div>
     </div>
     <div class="hub-tile" data-panel="donate">
       <div>
-        <div class="hub-tile-icon">🤲</div>
+        <img src="assets/Dontation.png" class="hub-tile-icon" alt="Donate">
         <div class="hub-tile-label">Donate</div>
       </div>
-      <div class="hub-tile-detail">Support the masjid</div>
     </div>
     <div class="hub-tile" data-panel="about">
       <div>
-        <div class="hub-tile-icon">ℹ️</div>
+        <img src="assets/Info.png" class="hub-tile-icon" alt="About & Contact">
         <div class="hub-tile-label">About & Contact</div>
       </div>
-      <div class="hub-tile-detail">Address, phone, socials</div>
     </div>
   </div>
 
@@ -102,7 +96,19 @@
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-document.getElementById('hub-masjid-name').textContent = KIOSK_CONFIG.masjidName;
+/* ============================================================
+   KIOSK SETTINGS (real-time from Firestore)
+   ============================================================ */
+let kioskLocked = false;
+let hubIdleTimeoutMs = KIOSK_CONFIG.hubIdleTimeoutSeconds * 1000;
+const tapHint = document.querySelector('.tap-hint');
+
+db.collection('settings').doc('kiosk').onSnapshot(doc => {
+  const data = doc.exists ? doc.data() : {};
+  kioskLocked = data.locked || false;
+  tapHint.style.display = kioskLocked ? 'none' : '';
+  hubIdleTimeoutMs = (data.hubIdleTimeoutSeconds || KIOSK_CONFIG.hubIdleTimeoutSeconds) * 1000;
+});
 
 /* ============================================================
    AD REEL
@@ -127,7 +133,7 @@ function playCurrentAd() {
   adWrap.innerHTML = '';
 
   if (ads.length === 0) {
-    adWrap.innerHTML = '<div id="ad-empty-state">No ads yet.<br>Upload one from the admin page to get started.</div>';
+    adWrap.innerHTML = '<div id="ad-empty-state">No content yet.<br>Upload media from the admin page.</div>';
     return;
   }
 
@@ -175,6 +181,7 @@ function playWipe(callback) {
 }
 
 function openHub() {
+  if (kioskLocked) return;
   playWipe(() => {
     adView.classList.add('hidden');
     hubView.classList.remove('hidden');
@@ -197,7 +204,7 @@ function closeHub() {
 
 function resetHubIdleTimer() {
   clearTimeout(hubIdleTimer);
-  hubIdleTimer = setTimeout(closeHub, KIOSK_CONFIG.hubIdleTimeoutSeconds * 1000);
+  hubIdleTimer = setTimeout(closeHub, hubIdleTimeoutMs);
 }
 
 adView.addEventListener('click', openHub);

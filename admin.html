@@ -32,19 +32,20 @@
   <div id="admin-content" class="hidden">
 
     <div class="admin-card">
-      <h1>Kiosk Ads — <span id="masjid-name-label"></span></h1>
+      <h1>Kiosk Media — <span id="masjid-name-label"></span></h1>
       <button class="btn btn-secondary" id="btn-logout">Sign out</button>
     </div>
 
+    <!-- ── UPLOAD ── -->
     <div class="admin-card">
-      <h2>Upload a new ad</h2>
+      <h2>Upload new media</h2>
       <div class="admin-field">
         <label>Image or video file</label>
         <input type="file" id="upload-file" accept="image/*,video/*">
       </div>
       <div class="admin-field">
         <label>Title (just for your reference)</label>
-        <input type="text" id="upload-title" placeholder="e.g. Al-Noor Grocery — Ramadan special">
+        <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
       </div>
       <div class="admin-field" id="duration-field">
         <label>How many seconds should this stay on screen? (images only — videos play in full)</label>
@@ -61,9 +62,73 @@
       <div class="status-msg" id="upload-status"></div>
     </div>
 
+    <!-- ── MEDIA LIST ── -->
     <div class="admin-card">
-      <h2>Current ads</h2>
+      <h2>Current media</h2>
+      <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0;">Click a thumbnail to view or download it.</p>
       <div id="ad-list"></div>
+    </div>
+
+    <!-- ── KIOSK SETTINGS ── -->
+    <div class="admin-card">
+      <h2>Kiosk Settings</h2>
+
+      <div class="admin-field">
+        <label class="toggle-label" style="font-size:1rem;">
+          <input type="checkbox" id="setting-locked">
+          Lock screen — disable tap to explore
+        </label>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">When on, visitors cannot open the hub. Takes effect on the kiosk immediately.</p>
+      </div>
+
+      <div class="admin-field" style="margin-top:1.2rem;">
+        <label>Hub idle timeout (seconds)</label>
+        <input type="number" id="setting-idle-timeout" value="30" min="5">
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">How long before the hub auto-closes and returns to the reel.</p>
+      </div>
+      <button class="btn btn-sm" id="btn-save-settings" style="margin-top:0.8rem;">Save Settings</button>
+      <div class="status-msg" id="settings-status"></div>
+    </div>
+
+    <!-- ── HUB CONTENT ── -->
+    <div class="admin-card">
+      <h2>Hub Content</h2>
+      <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0;">Edit the text shown inside each tile on the kiosk hub screen.</p>
+
+      <div class="hub-content-section">
+        <h3>Announcements</h3>
+        <div id="announcements-list"></div>
+        <button class="btn btn-secondary btn-sm" id="btn-add-announcement">+ Add item</button>
+        <button class="btn btn-sm" id="btn-save-announcements">Save</button>
+        <div class="status-msg" id="announcements-status"></div>
+      </div>
+
+      <div class="hub-content-section">
+        <h3>Events</h3>
+        <div id="events-list"></div>
+        <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Add item</button>
+        <button class="btn btn-sm" id="btn-save-events">Save</button>
+        <div class="status-msg" id="events-status"></div>
+      </div>
+
+      <div class="hub-content-section">
+        <h3>Donate Info</h3>
+        <div class="admin-field">
+          <textarea id="donate-text" rows="5" placeholder="Enter donation instructions, links, or payment info…"></textarea>
+        </div>
+        <button class="btn btn-sm" id="btn-save-donate">Save</button>
+        <div class="status-msg" id="donate-status"></div>
+      </div>
+
+      <div class="hub-content-section">
+        <h3>About &amp; Contact</h3>
+        <div class="admin-field">
+          <textarea id="about-text" rows="5" placeholder="Address, phone number, social media, website…"></textarea>
+        </div>
+        <button class="btn btn-sm" id="btn-save-about">Save</button>
+        <div class="status-msg" id="about-status"></div>
+      </div>
+
     </div>
 
   </div>
@@ -94,7 +159,6 @@ document.getElementById('btn-login').addEventListener('click', () => {
   const password = document.getElementById('login-password').value;
   const errorBox = document.getElementById('login-error');
   errorBox.textContent = '';
-
   auth.signInWithEmailAndPassword(email, password).catch(err => {
     errorBox.textContent = err.message;
   });
@@ -107,6 +171,8 @@ auth.onAuthStateChanged(user => {
     loginCard.classList.add('hidden');
     adminContent.classList.remove('hidden');
     loadAdList();
+    loadHubContent();
+    loadKioskSettings();
   } else {
     loginCard.classList.remove('hidden');
     adminContent.classList.add('hidden');
@@ -116,6 +182,12 @@ auth.onAuthStateChanged(user => {
 /* ============================================================
    UPLOAD
    ============================================================ */
+document.getElementById('upload-file').addEventListener('change', () => {
+  const file = document.getElementById('upload-file').files[0];
+  document.getElementById('duration-field').style.display =
+    (file && file.type.startsWith('video')) ? 'none' : '';
+});
+
 document.getElementById('btn-upload').addEventListener('click', () => {
   const fileInput = document.getElementById('upload-file');
   const file = fileInput.files[0];
@@ -153,9 +225,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
   xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`);
 
   xhr.upload.addEventListener('progress', e => {
-    if (e.lengthComputable) {
-      progressFill.style.width = ((e.loaded / e.total) * 100) + '%';
-    }
+    if (e.lengthComputable) progressFill.style.width = ((e.loaded / e.total) * 100) + '%';
   });
 
   xhr.onload = () => {
@@ -168,14 +238,11 @@ document.getElementById('btn-upload').addEventListener('click', () => {
     const result = JSON.parse(xhr.responseText);
     db.collection('ads').add({
       url: result.secure_url,
-      type,
-      title,
-      duration,
-      order,
+      type, title, duration, order,
       active: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
-      statusBox.textContent = 'Uploaded! It will show up on the kiosk automatically.';
+      statusBox.textContent = 'Uploaded! It will show on the kiosk automatically.';
       statusBox.className = 'status-msg success';
       fileInput.value = '';
       document.getElementById('upload-title').value = '';
@@ -195,55 +262,237 @@ document.getElementById('btn-upload').addEventListener('click', () => {
 });
 
 /* ============================================================
-   AD LIST — toggle active / delete
+   MEDIA LIST — view, reorder, edit, toggle, delete
    ============================================================ */
+let currentAdDocs = [];
+
 function loadAdList() {
   db.collection('ads').orderBy('order').onSnapshot(snapshot => {
-    const listEl = document.getElementById('ad-list');
-    if (snapshot.empty) {
-      listEl.innerHTML = '<p>No ads uploaded yet.</p>';
-      return;
-    }
-    listEl.innerHTML = '';
-    snapshot.forEach(doc => {
-      const ad = doc.data();
-      const item = document.createElement('div');
-      item.className = 'ad-list-item';
+    currentAdDocs = [];
+    snapshot.forEach(doc => currentAdDocs.push({ id: doc.id, data: doc.data() }));
+    renderAdList(currentAdDocs);
+  });
+}
 
-      const thumb = ad.type === 'video'
-        ? `<video class="ad-list-thumb" src="${ad.url}" muted></video>`
-        : `<img class="ad-list-thumb" src="${ad.url}">`;
+function renderAdList(docs) {
+  const listEl = document.getElementById('ad-list');
+  if (docs.length === 0) {
+    listEl.innerHTML = '<p>No media uploaded yet.</p>';
+    return;
+  }
+  listEl.innerHTML = '';
 
-      item.innerHTML = `
-        ${thumb}
-        <div class="ad-list-info">
-          <div class="fname">${ad.title || '(untitled)'}</div>
-          <div class="meta">${ad.type} · order ${ad.order} ${ad.type === 'image' ? '· ' + ad.duration + 's' : ''}</div>
-        </div>
+  docs.forEach((item, i) => {
+    const { id, data: ad } = item;
+    const div = document.createElement('div');
+    div.className = 'ad-list-item';
+    div.dataset.id = id;
+
+    const thumbHtml = ad.type === 'video'
+      ? `<a href="${ad.url}" target="_blank"><video class="ad-list-thumb" src="${ad.url}" muted></video></a>`
+      : `<a href="${ad.url}" target="_blank"><img class="ad-list-thumb" src="${ad.url}"></a>`;
+
+    div.innerHTML = `
+      ${thumbHtml}
+      <div class="ad-list-info">
+        <div class="fname">${ad.title || '(untitled)'}</div>
+        <div class="meta">${ad.type} · order ${ad.order}${ad.type === 'image' ? ' · ' + ad.duration + 's' : ''}</div>
+      </div>
+      <div class="ad-list-actions">
+        <button class="btn btn-sm btn-secondary btn-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn btn-sm btn-secondary btn-down" data-idx="${i}" ${i === docs.length - 1 ? 'disabled' : ''}>↓</button>
+        <button class="btn btn-sm btn-secondary btn-edit" data-id="${id}" data-idx="${i}">Edit</button>
         <label class="toggle-label">
-          <input type="checkbox" ${ad.active ? 'checked' : ''} data-id="${doc.id}" class="toggle-active">
-          Active
+          <input type="checkbox" ${ad.active ? 'checked' : ''} data-id="${id}" class="toggle-active"> Active
         </label>
-        <button class="btn btn-danger delete-ad" data-id="${doc.id}">Delete</button>
-      `;
-      listEl.appendChild(item);
-    });
+        <button class="btn btn-sm btn-danger delete-ad" data-id="${id}">Delete</button>
+      </div>
+    `;
+    listEl.appendChild(div);
+  });
 
-    document.querySelectorAll('.toggle-active').forEach(box => {
-      box.addEventListener('change', () => {
-        db.collection('ads').doc(box.dataset.id).update({ active: box.checked });
-      });
+  listEl.querySelectorAll('.btn-up').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx);
+      const a = currentAdDocs[i], b = currentAdDocs[i - 1];
+      swapOrder(a.id, a.data.order, b.id, b.data.order);
     });
+  });
 
-    document.querySelectorAll('.delete-ad').forEach(btn => {
-      btn.addEventListener('click', () => {
-        if (confirm('Delete this ad? This cannot be undone.')) {
-          db.collection('ads').doc(btn.dataset.id).delete();
-        }
-      });
+  listEl.querySelectorAll('.btn-down').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const i = parseInt(btn.dataset.idx);
+      const a = currentAdDocs[i], b = currentAdDocs[i + 1];
+      swapOrder(a.id, a.data.order, b.id, b.data.order);
+    });
+  });
+
+  listEl.querySelectorAll('.btn-edit').forEach(btn => {
+    btn.addEventListener('click', () => showEditForm(btn.dataset.id, parseInt(btn.dataset.idx)));
+  });
+
+  listEl.querySelectorAll('.toggle-active').forEach(box => {
+    box.addEventListener('change', () => {
+      db.collection('ads').doc(box.dataset.id).update({ active: box.checked });
+    });
+  });
+
+  listEl.querySelectorAll('.delete-ad').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('Delete this item? This cannot be undone.')) {
+        db.collection('ads').doc(btn.dataset.id).delete();
+      }
     });
   });
 }
+
+function swapOrder(id1, order1, id2, order2) {
+  const batch = db.batch();
+  batch.update(db.collection('ads').doc(id1), { order: order2 });
+  batch.update(db.collection('ads').doc(id2), { order: order1 });
+  batch.commit();
+}
+
+function showEditForm(id, idx) {
+  const ad = currentAdDocs[idx].data;
+  const item = document.querySelector(`#ad-list .ad-list-item[data-id="${id}"]`);
+  item.innerHTML = `
+    <div class="inline-edit-form">
+      <div class="admin-field">
+        <label>Title</label>
+        <input type="text" class="edit-title" value="${ad.title || ''}">
+      </div>
+      ${ad.type === 'image' ? `
+      <div class="admin-field">
+        <label>Duration (seconds)</label>
+        <input type="number" class="edit-duration" value="${ad.duration || 8}" min="2">
+      </div>` : ''}
+      <div class="admin-field">
+        <label>Order</label>
+        <input type="number" class="edit-order" value="${ad.order || 1}">
+      </div>
+      <div class="inline-edit-actions">
+        <button class="btn btn-sm save-edit">Save</button>
+        <button class="btn btn-sm btn-secondary cancel-edit">Cancel</button>
+      </div>
+    </div>
+  `;
+  item.querySelector('.save-edit').addEventListener('click', () => {
+    const updates = {
+      title: item.querySelector('.edit-title').value.trim(),
+      order: parseInt(item.querySelector('.edit-order').value, 10) || 1,
+    };
+    if (ad.type === 'image') updates.duration = parseInt(item.querySelector('.edit-duration').value, 10) || 8;
+    db.collection('ads').doc(id).update(updates);
+  });
+  item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(currentAdDocs));
+}
+
+/* ============================================================
+   HUB CONTENT EDITOR
+   ============================================================ */
+function loadHubContent() {
+  db.collection('hub_content').doc('announcements').get().then(doc => {
+    renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : []);
+  });
+  db.collection('hub_content').doc('events').get().then(doc => {
+    renderHubList('events-list', doc.exists ? (doc.data().items || []) : []);
+  });
+  db.collection('hub_content').doc('donate').get().then(doc => {
+    if (doc.exists) document.getElementById('donate-text').value = doc.data().text || '';
+  });
+  db.collection('hub_content').doc('about').get().then(doc => {
+    if (doc.exists) document.getElementById('about-text').value = doc.data().text || '';
+  });
+}
+
+function renderHubList(containerId, items) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = '';
+  items.forEach(item => addHubItemRow(container, item.date || '', item.text || ''));
+}
+
+function addHubItemRow(container, date, text) {
+  const row = document.createElement('div');
+  row.className = 'hub-item-row';
+  row.innerHTML = `
+    <input type="text" class="hub-item-date" placeholder="Date (e.g. Sep 1)" value="${date}">
+    <input type="text" class="hub-item-text" placeholder="Description" value="${text}">
+    <button class="btn btn-sm btn-danger remove-hub-item">✕</button>
+  `;
+  row.querySelector('.remove-hub-item').addEventListener('click', () => row.remove());
+  container.appendChild(row);
+}
+
+function getHubListItems(containerId) {
+  return Array.from(document.querySelectorAll(`#${containerId} .hub-item-row`))
+    .map(row => ({
+      date: row.querySelector('.hub-item-date').value.trim(),
+      text: row.querySelector('.hub-item-text').value.trim(),
+    }))
+    .filter(item => item.text);
+}
+
+function saveHubList(docId, containerId, statusId) {
+  const items = getHubListItems(containerId);
+  const statusEl = document.getElementById(statusId);
+  db.collection('hub_content').doc(docId).set({ items })
+    .then(() => showStatus(statusEl, 'Saved!', 'success'))
+    .catch(() => showStatus(statusEl, 'Error saving.', 'error'));
+}
+
+function saveHubText(docId, textareaId, statusId) {
+  const text = document.getElementById(textareaId).value;
+  const statusEl = document.getElementById(statusId);
+  db.collection('hub_content').doc(docId).set({ text })
+    .then(() => showStatus(statusEl, 'Saved!', 'success'))
+    .catch(() => showStatus(statusEl, 'Error saving.', 'error'));
+}
+
+function showStatus(el, msg, type) {
+  el.textContent = msg;
+  el.className = 'status-msg ' + type;
+  setTimeout(() => { el.textContent = ''; el.className = 'status-msg'; }, 3000);
+}
+
+document.getElementById('btn-add-announcement').addEventListener('click', () =>
+  addHubItemRow(document.getElementById('announcements-list'), '', ''));
+document.getElementById('btn-save-announcements').addEventListener('click', () =>
+  saveHubList('announcements', 'announcements-list', 'announcements-status'));
+
+document.getElementById('btn-add-event').addEventListener('click', () =>
+  addHubItemRow(document.getElementById('events-list'), '', ''));
+document.getElementById('btn-save-events').addEventListener('click', () =>
+  saveHubList('events', 'events-list', 'events-status'));
+
+document.getElementById('btn-save-donate').addEventListener('click', () =>
+  saveHubText('donate', 'donate-text', 'donate-status'));
+document.getElementById('btn-save-about').addEventListener('click', () =>
+  saveHubText('about', 'about-text', 'about-status'));
+
+/* ============================================================
+   KIOSK SETTINGS
+   ============================================================ */
+function loadKioskSettings() {
+  db.collection('settings').doc('kiosk').get().then(doc => {
+    if (!doc.exists) return;
+    const data = doc.data();
+    document.getElementById('setting-locked').checked = data.locked || false;
+    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;
+  });
+}
+
+document.getElementById('setting-locked').addEventListener('change', () => {
+  const locked = document.getElementById('setting-locked').checked;
+  db.collection('settings').doc('kiosk').set({ locked }, { merge: true });
+});
+
+document.getElementById('btn-save-settings').addEventListener('click', () => {
+  const timeout = parseInt(document.getElementById('setting-idle-timeout').value, 10) || 30;
+  db.collection('settings').doc('kiosk').set({ hubIdleTimeoutSeconds: timeout }, { merge: true })
+    .then(() => showStatus(document.getElementById('settings-status'), 'Saved!', 'success'))
+    .catch(err => showStatus(document.getElementById('settings-status'), 'Error: ' + err.message, 'error'));
+});
 </script>
 </body>
 </html>

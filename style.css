@@ -1,21 +1,26 @@
 @import url('https://fonts.googleapis.com/css2?family=Reem+Kufi:wght@400..700&family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
-  --bg-deep: #081917;
-  --bg-panel: #0F2C28;
-  --bg-panel-light: #16403A;
-  --teal-mid: #1C6E64;
+  --bg-deep: #FFFFFF;
+  --bg-panel: #FDFBF5;
+  --bg-panel-light: #EDE4C4;
+  --teal-mid: #C9A227;
   --gold: #C9A227;
   --gold-light: #E4C765;
-  --text-light: #F5F1E6;
-  --text-muted: #A9C0BA;
-  --radius: 18px;
+  --text-light: #1C1A14;
+  --text-muted: #7A7060;
+  --radius: 1.1rem;
   --star-size: 120px;
 }
 
 * { box-sizing: border-box; }
 
 .hidden { display: none !important; }
+
+html {
+  /* Scales all rem sizes with screen height: ~16px at 1080p, ~32px at 4K */
+  font-size: clamp(16px, 1.5vh, 40px);
+}
 
 html, body {
   margin: 0;
@@ -34,7 +39,7 @@ html, body {
 .star-field {
   position: absolute;
   inset: 0;
-  opacity: 0.05;
+  opacity: 0.1;
   pointer-events: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C9A227' stroke-width='1.5'%3E%3Cpath d='M60 10 L70 40 L100 30 L80 55 L110 60 L80 65 L100 90 L70 80 L60 110 L50 80 L20 90 L40 65 L10 60 L40 55 L20 30 L50 40 Z'/%3E%3C/g%3E%3C/svg%3E");
   background-size: var(--star-size) var(--star-size);
@@ -68,7 +73,7 @@ html, body {
 #ad-media-wrap video {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   animation: fadeIn 0.6s ease;
 }
 
@@ -79,7 +84,7 @@ html, body {
 
 #ad-empty-state {
   text-align: center;
-  color: var(--text-muted);
+  color: #A9C0BA;
   font-family: 'Reem Kufi', sans-serif;
   font-size: 2rem;
   padding: 2rem;
@@ -164,23 +169,36 @@ html, body {
 .hub-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 2.2rem 3rem 1.2rem;
+  justify-content: flex-end;
+  padding: 2rem 3rem;
+  min-height: 14rem;
   position: relative;
   z-index: 2;
 }
 
-.hub-title {
-  font-family: 'Reem Kufi', sans-serif;
-  font-size: 2.4rem;
-  color: var(--gold-light);
-  letter-spacing: 0.02em;
+.hub-header-spacer {
+  display: none;
+}
+
+.hub-header-center {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.hub-logo {
+  height: 10rem;
+  width: auto;
+  object-fit: contain;
 }
 
 .hub-subtitle {
   color: var(--text-muted);
   font-size: 1rem;
-  margin-top: 0.2rem;
+  margin-top: 0.4rem;
 }
 
 .back-to-ads {
@@ -198,8 +216,8 @@ html, body {
 .hub-grid {
   flex: 1;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   gap: 1.6rem;
   padding: 0 3rem 3rem;
   position: relative;
@@ -208,12 +226,14 @@ html, body {
 
 .hub-tile {
   background: var(--bg-panel);
-  border: 1px solid var(--bg-panel-light);
+  border: 2px solid var(--gold);
   border-radius: var(--radius);
   padding: 2rem;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
   cursor: pointer;
   position: relative;
   overflow: hidden;
@@ -228,17 +248,17 @@ html, body {
 .hub-tile::after {
   content: '';
   position: absolute;
-  top: -20px;
-  right: -20px;
-  width: 70px;
-  height: 70px;
+  top: -1.25rem;
+  right: -1.25rem;
+  width: 4.375rem;
+  height: 4.375rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='70' height='70' viewBox='0 0 120 120'%3E%3Cg fill='none' stroke='%23C9A227' stroke-width='2'%3E%3Cpath d='M60 10 L70 40 L100 30 L80 55 L110 60 L80 65 L100 90 L70 80 L60 110 L50 80 L20 90 L40 65 L10 60 L40 55 L20 30 L50 40 Z'/%3E%3C/g%3E%3C/svg%3E");
   opacity: 0.35;
 }
 
 .hub-tile-label {
   font-family: 'Reem Kufi', sans-serif;
-  font-size: 1.5rem;
+  font-size: 2.2rem;
   color: var(--text-light);
 }
 
@@ -250,8 +270,11 @@ html, body {
 }
 
 .hub-tile-icon {
-  font-size: 2.4rem;
-  margin-bottom: 0.5rem;
+  width: 7rem;
+  height: 7rem;
+  object-fit: contain;
+  margin: 0 auto 1.2rem;
+  display: block;
 }
 
 /* Detail panel (opens over the grid when a tile is tapped) */
@@ -287,7 +310,7 @@ html, body {
 .detail-title {
   font-family: 'Reem Kufi', sans-serif;
   font-size: 2rem;
-  color: var(--gold-light);
+  color: var(--gold);
 }
 
 .detail-body {
@@ -318,7 +341,7 @@ html, body {
 
 .prayer-card .name {
   font-family: 'Reem Kufi', sans-serif;
-  color: var(--gold-light);
+  color: var(--gold);
   font-size: 1.3rem;
 }
 
@@ -362,7 +385,7 @@ html, body {
 
 .admin-card h1, .admin-card h2 {
   font-family: 'Reem Kufi', sans-serif;
-  color: var(--gold-light);
+  color: var(--gold);
   margin-top: 0;
 }
 
@@ -398,7 +421,7 @@ html, body {
 
 .btn {
   background: var(--gold);
-  color: var(--bg-deep);
+  color: #1C1A14;
   border: none;
   border-radius: 999px;
   padding: 0.9rem 2rem;
@@ -477,7 +500,90 @@ html, body {
   cursor: pointer;
 }
 
-@media (max-width: 900px) {
-  .hub-grid { grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(3, 1fr); }
+.btn-sm {
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+}
+
+.ad-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.inline-edit-form {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+}
+
+.inline-edit-form .admin-field { margin-bottom: 0; }
+
+.inline-edit-actions {
+  display: flex;
+  gap: 0.6rem;
+  margin-top: 0.25rem;
+}
+
+.hub-content-section {
+  border-top: 1px solid var(--bg-panel-light);
+  padding-top: 1.2rem;
+  margin-top: 1.2rem;
+}
+
+.hub-content-section h3 {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--gold);
+  margin: 0 0 0.8rem;
+  font-size: 1.1rem;
+}
+
+.hub-item-row {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.hub-item-row .hub-item-date {
+  width: 140px;
+  flex-shrink: 0;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--teal-mid);
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+}
+
+.hub-item-row .hub-item-text {
+  flex: 1;
+  padding: 0.6rem;
+  border-radius: 8px;
+  border: 1px solid var(--teal-mid);
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+}
+
+.admin-field textarea {
+  width: 100%;
+  padding: 0.8rem;
+  border-radius: 10px;
+  border: 1px solid var(--teal-mid);
+  background: var(--bg-deep);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  resize: vertical;
+}
+
+@media (max-width: 600px) {
+  .hub-grid { grid-template-columns: 1fr; grid-template-rows: repeat(6, 1fr); }
   .prayer-grid { grid-template-columns: repeat(2, 1fr); }
 }
