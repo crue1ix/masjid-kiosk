@@ -224,15 +224,23 @@ html, body {
 }
 
 .back-to-ads {
+  position: absolute;
+  top: 2.2rem;
+  left: 3rem;
   font-family: 'Inter', sans-serif;
   font-weight: 600;
   background: var(--bg-panel-light);
   color: var(--text-light);
   border: 1px solid var(--teal-mid);
   border-radius: 999px;
-  padding: 0.8rem 1.8rem;
+  padding: 0.7rem 1.4rem;
   font-size: 1rem;
   cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.back-to-ads:active {
+  transform: scale(0.92);
 }
 
 .hub-grid {
@@ -314,12 +322,14 @@ html, body {
 
 .detail-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 1.5rem;
   margin-bottom: 1.5rem;
 }
 
 .detail-back {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
   background: var(--bg-panel-light);
   color: var(--text-light);
   border: 1px solid var(--teal-mid);
@@ -327,6 +337,11 @@ html, body {
   padding: 0.7rem 1.4rem;
   font-size: 1rem;
   cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.detail-back:active {
+  transform: scale(0.92);
 }
 
 .detail-title {
@@ -357,19 +372,19 @@ html, body {
   background: var(--bg-panel);
   border: 1px solid var(--bg-panel-light);
   border-radius: var(--radius);
-  padding: 1.6rem;
+  padding: 2rem;
   text-align: center;
 }
 
 .prayer-card .name {
   font-family: 'Reem Kufi', sans-serif;
   color: var(--gold);
-  font-size: 1.3rem;
+  font-size: 1.8rem;
 }
 
 .prayer-card .time {
-  font-size: 1.8rem;
-  margin-top: 0.4rem;
+  font-size: 2.8rem;
+  margin-top: 0.5rem;
   font-weight: 600;
 }
 
