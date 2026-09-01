@@ -32,8 +32,9 @@ const KIOSK_CONFIG = {
   longitude: -81.2856,
 
   // Prayer time calculation method for the Aladhan API.
-  // 2 = Islamic Society of North America (ISNA) — common in the US/Canada.
-  calculationMethod: 2,
+  // 0 = Shia Ithna-Ashari (Ja'fari), Leva Institute, Qum — correct
+  // Fajr/Isha twilight angles and delayed Maghrib per Ja'fari fiqh.
+  calculationMethod: 0,
 
   defaultImageDuration: 8,
   hubIdleTimeoutSeconds: 30

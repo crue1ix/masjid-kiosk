@@ -291,7 +291,7 @@ function loadListDoc(path, body, emptyMessage, simpleText) {
 
 function loadPrayerTimes(body) {
   const today = new Date().toISOString().slice(0, 10);
-  const cacheKey = 'prayerTimes_' + today;
+  const cacheKey = `prayerTimes_${today}_${KIOSK_CONFIG.calculationMethod}`;
   const cached = localStorage.getItem(cacheKey);
 
   if (cached) {
