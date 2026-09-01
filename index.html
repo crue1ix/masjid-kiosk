@@ -189,6 +189,7 @@ const hubView = document.getElementById('hub-view');
 const starWipe = document.getElementById('star-wipe');
 const hubGrid = document.getElementById('hub-grid');
 const hubDetail = document.getElementById('hub-detail');
+const hubHeader = document.querySelector('.hub-header');
 let hubIdleTimer = null;
 
 function playWipe(callback) {
@@ -199,11 +200,21 @@ function playWipe(callback) {
   }, 350);
 }
 
+function revealView(view, direction) {
+  const cls = direction === 'back' ? 'revealing-back' : 'revealing';
+  view.classList.remove('revealing', 'revealing-back');
+  // Force reflow so the animation restarts even if it's already applied
+  void view.offsetWidth;
+  view.classList.add(cls);
+  setTimeout(() => view.classList.remove(cls), 450);
+}
+
 function openHub() {
   if (kioskLocked) return;
   playWipe(() => {
     adView.classList.add('hidden');
     hubView.classList.remove('hidden');
+    revealView(hubView);
     showHubGrid();
     resetHubIdleTimer();
     // Pause any playing ad video
@@ -217,6 +228,7 @@ function closeHub() {
   playWipe(() => {
     hubView.classList.add('hidden');
     adView.classList.remove('hidden');
+    revealView(adView, 'back');
     playCurrentAd();
   });
 }
@@ -234,14 +246,17 @@ hubView.addEventListener('touchstart', resetHubIdleTimer);
 /* ============================================================
    HUB TILE PANELS
    ============================================================ */
-function showHubGrid() {
+function showHubGrid(direction) {
   hubGrid.classList.remove('hidden');
   hubDetail.classList.add('hidden');
+  revealView(hubGrid, direction);
+  if (direction === 'back') revealView(hubHeader, 'back');
 }
 
 function showDetail(panel) {
   hubGrid.classList.add('hidden');
   hubDetail.classList.remove('hidden');
+  revealView(hubDetail);
   loadPanel(panel);
 }
 
@@ -249,7 +264,7 @@ document.querySelectorAll('.hub-tile').forEach(tile => {
   tile.addEventListener('click', () => showDetail(tile.dataset.panel));
 });
 
-document.getElementById('btn-detail-back').addEventListener('click', showHubGrid);
+document.getElementById('btn-detail-back').addEventListener('click', () => showHubGrid('back'));
 
 function loadPanel(panel) {
   const title = document.getElementById('detail-title');
