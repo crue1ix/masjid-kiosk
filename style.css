@@ -77,6 +77,119 @@ html, body {
   animation: fadeIn 0.6s ease;
 }
 
+.ad-prayer-slide {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  background: var(--bg-panel);
+  overflow: hidden;
+  animation: fadeIn 0.6s ease;
+}
+
+.ad-prayer-header {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.ad-prayer-heading {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--gold);
+  font-size: 3.4rem;
+  letter-spacing: 0.02em;
+}
+
+.ad-prayer-rule {
+  width: 5rem;
+  height: 3px;
+  background: var(--gold);
+  border-radius: 2px;
+  margin: 1rem auto 0.8rem;
+}
+
+.ad-prayer-date {
+  font-family: 'Inter', sans-serif;
+  color: var(--text-muted);
+  font-size: 1.3rem;
+}
+
+.ad-prayer-row {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: stretch;
+}
+
+.ad-prayer-segment {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 2.8rem;
+}
+
+.ad-prayer-segment + .ad-prayer-segment {
+  border-left: 2px solid var(--bg-panel-light);
+}
+
+.ad-prayer-segment .name {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-size: 1.05rem;
+}
+
+.ad-prayer-segment .time {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--text-light);
+  font-size: 3rem;
+  margin-top: 0.9rem;
+}
+
+@media (orientation: portrait) {
+  .ad-prayer-slide {
+    gap: 2rem;
+  }
+
+  .ad-prayer-heading {
+    font-size: 2.6rem;
+  }
+
+  .ad-prayer-row {
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  .ad-prayer-segment {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    width: 70%;
+    padding: 1rem 0;
+  }
+
+  .ad-prayer-segment + .ad-prayer-segment {
+    border-left: none;
+    border-top: 2px solid var(--bg-panel-light);
+  }
+
+  .ad-prayer-segment .name {
+    font-size: 1.3rem;
+  }
+
+  .ad-prayer-segment .time {
+    font-size: 2.2rem;
+    margin-top: 0;
+  }
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -250,7 +363,7 @@ html, body {
   background: var(--bg-panel-light);
   color: var(--text-light);
   border: 1px solid var(--teal-mid);
-  border-radius: 999px;
+  border-radius: 1rem;
   padding: 0.7rem 1.4rem;
   font-size: 1rem;
   cursor: pointer;
@@ -351,7 +464,7 @@ html, body {
   background: var(--bg-panel-light);
   color: var(--text-light);
   border: 1px solid var(--teal-mid);
-  border-radius: 999px;
+  border-radius: 1rem;
   padding: 0.7rem 1.4rem;
   font-size: 1rem;
   cursor: pointer;

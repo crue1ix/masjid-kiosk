@@ -18,7 +18,6 @@
       Upload media from the admin page.
     </div>
   </div>
-  <div class="tap-hint">Tap the screen to explore</div>
 </div>
 
 <!-- ===================== STAR WIPE TRANSITION ===================== -->
@@ -105,13 +104,18 @@ const db = firebase.firestore();
    ============================================================ */
 let kioskLocked = false;
 let hubIdleTimeoutMs = KIOSK_CONFIG.hubIdleTimeoutSeconds * 1000;
+let specialReels = { prayerTimes: false };
+let prayerReelDurationMs = 15000;
 const tapHint = document.querySelector('.tap-hint');
 
 db.collection('settings').doc('kiosk').onSnapshot(doc => {
   const data = doc.exists ? doc.data() : {};
   kioskLocked = data.locked || false;
-  tapHint.style.display = kioskLocked ? 'none' : '';
+  if (tapHint) tapHint.style.display = kioskLocked ? 'none' : '';
   hubIdleTimeoutMs = (data.hubIdleTimeoutSeconds || KIOSK_CONFIG.hubIdleTimeoutSeconds) * 1000;
+  specialReels.prayerTimes = !!(data.specialReels && data.specialReels.prayerTimes);
+  prayerReelDurationMs = ((data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15) * 1000;
+  rebuildPlaylist();
 });
 
 /* ============================================================
@@ -132,6 +136,7 @@ setInterval(updateClock, 1000);
 /* ============================================================
    AD REEL
    ============================================================ */
+let rawAds = [];
 let ads = [];
 let currentAdIndex = 0;
 let adTimer = null;
@@ -142,10 +147,17 @@ const adWrap = document.getElementById('ad-media-wrap');
 // (Filtering "active" here in JS, rather than in the query, avoids needing
 // a Firestore composite index.)
 db.collection('ads').orderBy('order').onSnapshot(snapshot => {
-  ads = snapshot.docs.map(doc => doc.data()).filter(ad => ad.active);
+  rawAds = snapshot.docs.map(doc => doc.data()).filter(ad => ad.active);
+  rebuildPlaylist();
+});
+
+// Special reels (e.g. prayer times) aren't part of the orderable `ads` list —
+// they're appended once per full loop, independent of manual ordering.
+function rebuildPlaylist() {
+  ads = specialReels.prayerTimes ? rawAds.concat([{ type: 'special', special: 'prayerTimes' }]) : rawAds.slice();
   currentAdIndex = 0;
   playCurrentAd();
-});
+}
 
 function playCurrentAd() {
   clearTimeout(adTimer);
@@ -158,7 +170,9 @@ function playCurrentAd() {
 
   const ad = ads[currentAdIndex % ads.length];
 
-  if (ad.type === 'video') {
+  if (ad.type === 'special' && ad.special === 'prayerTimes') {
+    renderPrayerReelSlide();
+  } else if (ad.type === 'video') {
     const video = document.createElement('video');
     video.src = ad.url;
     video.autoplay = true;
@@ -180,6 +194,35 @@ function playCurrentAd() {
 function advanceAd() {
   currentAdIndex = (currentAdIndex + 1) % Math.max(ads.length, 1);
   playCurrentAd();
+}
+
+function renderPrayerReelSlide() {
+  adWrap.innerHTML = '<div class="ad-prayer-slide"><p>Loading…</p></div>';
+  getPrayerTimes(t => {
+    adWrap.innerHTML = buildPrayerReelHtml(t);
+    adTimer = setTimeout(advanceAd, prayerReelDurationMs);
+  }, () => advanceAd());
+}
+
+function buildPrayerReelHtml(t) {
+  const order = ['Fajr', 'Sunrise', 'Dhuhr', 'Maghrib', 'Midnight'];
+  const today = new Date().toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  return `
+    <div class="ad-prayer-slide">
+      <div class="star-field"></div>
+      <div class="ad-prayer-header">
+        <div class="ad-prayer-heading">Prayer Times</div>
+        <div class="ad-prayer-rule"></div>
+        <div class="ad-prayer-date">${today}</div>
+      </div>
+      <div class="ad-prayer-row">${order.map(name => `
+        <div class="ad-prayer-segment">
+          <div class="name">${name}</div>
+          <div class="time">${to12Hour(t[name])}</div>
+        </div>
+      `).join('')}</div>
+    </div>
+  `;
 }
 
 /* ============================================================
@@ -273,7 +316,10 @@ function loadPanel(panel) {
 
   if (panel === 'prayer') {
     title.textContent = 'Prayer Times';
-    loadPrayerTimes(body);
+    getPrayerTimes(
+      t => renderPrayerTimes(body, t),
+      () => body.innerHTML = '<p>Could not load prayer times — check the internet connection.</p>'
+    );
   } else if (panel === 'map') {
     title.textContent = 'Masjid Map';
     // Replace assets/map.jpg with your actual floor plan / site map image
@@ -323,13 +369,13 @@ function loadListDoc(path, body, emptyMessage, simpleText) {
   });
 }
 
-function loadPrayerTimes(body) {
+function getPrayerTimes(onLoaded, onError) {
   const today = new Date().toISOString().slice(0, 10);
   const cacheKey = `prayerTimes_${today}_${KIOSK_CONFIG.calculationMethod}_mm1`;
   const cached = localStorage.getItem(cacheKey);
 
   if (cached) {
-    renderPrayerTimes(body, JSON.parse(cached));
+    onLoaded(JSON.parse(cached));
     return;
   }
 
@@ -341,11 +387,9 @@ function loadPrayerTimes(body) {
     .then(data => {
       const t = data.data.timings;
       localStorage.setItem(cacheKey, JSON.stringify(t));
-      renderPrayerTimes(body, t);
+      onLoaded(t);
     })
-    .catch(() => {
-      body.innerHTML = '<p>Could not load prayer times — check the internet connection.</p>';
-    });
+    .catch(onError);
 }
 
 function to12Hour(time24) {

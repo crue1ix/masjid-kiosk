@@ -11,6 +11,17 @@ const firebaseConfig = {
 };
 
 // ============================================================
+// ADMIN LOGIN — Firebase Auth only supports email/password, so
+// usernames are turned into a fake email under this domain behind
+// the scenes (e.g. username "admin" becomes admin@al-hayy-ad-screen.local).
+// When creating admin accounts in the Firebase Console, use that
+// fake email format instead of a real email address.
+// ============================================================
+const AUTH_CONFIG = {
+  usernameDomain: "al-hayy-ad-screen.local"
+};
+
+// ============================================================
 // CLOUDINARY CONFIGURATION — this is where ad photos/videos are
 // actually stored.
 // ============================================================

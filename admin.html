@@ -17,8 +17,8 @@
   <div class="admin-card" id="login-card">
     <h1>Sign in</h1>
     <div class="admin-field">
-      <label>Email</label>
-      <input type="email" id="login-email">
+      <label>Username</label>
+      <input type="text" id="login-username" autocomplete="username">
     </div>
     <div class="admin-field">
       <label>Password</label>
@@ -79,6 +79,20 @@
           Lock screen — disable tap to explore
         </label>
         <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">When on, visitors cannot open the hub. Takes effect on the kiosk immediately.</p>
+      </div>
+
+      <div class="admin-field" style="margin-top:1.2rem;">
+        <label class="toggle-label" style="font-size:1rem;">
+          <input type="checkbox" id="setting-prayer-reel">
+          Show today's prayer times in the ad reel
+        </label>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">When on, a prayer times slide plays once per loop through the reel. Takes effect on the kiosk immediately.</p>
+      </div>
+
+      <div class="admin-field" style="margin-top:1.2rem;">
+        <label>Prayer times slide duration (seconds)</label>
+        <input type="number" id="setting-prayer-reel-duration" value="15" min="5">
+        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">How long the prayer times slide stays on screen when it plays in the ad reel.</p>
       </div>
 
       <div class="admin-field" style="margin-top:1.2rem;">
@@ -155,12 +169,21 @@ const adminContent = document.getElementById('admin-content');
    AUTH
    ============================================================ */
 document.getElementById('btn-login').addEventListener('click', () => {
-  const email = document.getElementById('login-email').value.trim();
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
   const password = document.getElementById('login-password').value;
   const errorBox = document.getElementById('login-error');
   errorBox.textContent = '';
+
+  if (!username) {
+    errorBox.textContent = 'Enter a username.';
+    return;
+  }
+
+  const email = `${username}@${AUTH_CONFIG.usernameDomain}`;
   auth.signInWithEmailAndPassword(email, password).catch(err => {
-    errorBox.textContent = err.message;
+    errorBox.textContent = err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password'
+      ? 'Incorrect username or password.'
+      : err.message;
   });
 });
 
@@ -478,6 +501,8 @@ function loadKioskSettings() {
     if (!doc.exists) return;
     const data = doc.data();
     document.getElementById('setting-locked').checked = data.locked || false;
+    document.getElementById('setting-prayer-reel').checked = !!(data.specialReels && data.specialReels.prayerTimes);
+    document.getElementById('setting-prayer-reel-duration').value = (data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15;
     document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;
   });
 }
@@ -487,9 +512,18 @@ document.getElementById('setting-locked').addEventListener('change', () => {
   db.collection('settings').doc('kiosk').set({ locked }, { merge: true });
 });
 
+document.getElementById('setting-prayer-reel').addEventListener('change', () => {
+  const enabled = document.getElementById('setting-prayer-reel').checked;
+  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimes: enabled } }, { merge: true });
+});
+
 document.getElementById('btn-save-settings').addEventListener('click', () => {
   const timeout = parseInt(document.getElementById('setting-idle-timeout').value, 10) || 30;
-  db.collection('settings').doc('kiosk').set({ hubIdleTimeoutSeconds: timeout }, { merge: true })
+  const prayerReelDuration = parseInt(document.getElementById('setting-prayer-reel-duration').value, 10) || 15;
+  db.collection('settings').doc('kiosk').set({
+    hubIdleTimeoutSeconds: timeout,
+    specialReels: { prayerTimesDurationSeconds: prayerReelDuration }
+  }, { merge: true })
     .then(() => showStatus(document.getElementById('settings-status'), 'Saved!', 'success'))
     .catch(err => showStatus(document.getElementById('settings-status'), 'Error: ' + err.message, 'error'));
 });
