@@ -6,10 +6,10 @@
 <title>Masjid Kiosk — Admin</title>
 <link rel="stylesheet" href="style.css">
 <style>
-  html, body { overflow-y: auto; height: auto; min-height: 100%; }
+  html, body { overflow-y: auto; height: auto; min-height: 100vh; }
 </style>
 </head>
-<body>
+<body class="admin-page">
 
 <div class="admin-body">
 
@@ -36,117 +36,148 @@
       <button class="btn btn-secondary" id="btn-logout">Sign out</button>
     </div>
 
-    <!-- ── UPLOAD ── -->
-    <div class="admin-card">
-      <h2>Upload new media</h2>
-      <div class="admin-field">
-        <label>Image or video file</label>
-        <input type="file" id="upload-file" accept="image/*,video/*">
-      </div>
-      <div class="admin-field">
-        <label>Title (just for your reference)</label>
-        <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
-      </div>
-      <div class="admin-field" id="duration-field">
-        <label>How many seconds should this stay on screen? (images only — videos play in full)</label>
-        <input type="number" id="upload-duration" value="8" min="2">
-      </div>
-      <div class="admin-field">
-        <label>Order (lower numbers play first)</label>
-        <input type="number" id="upload-order" value="1">
-      </div>
-      <button class="btn" id="btn-upload">Upload</button>
-      <div class="progress-bar" id="progress-wrap" style="display:none;">
-        <div class="progress-bar-fill" id="progress-fill"></div>
-      </div>
-      <div class="status-msg" id="upload-status"></div>
+    <div class="admin-tabs" role="tablist">
+      <button class="admin-tab-btn" data-tab="media" type="button">Media</button>
+      <button class="admin-tab-btn" data-tab="settings" type="button">Settings</button>
+      <button class="admin-tab-btn" data-tab="content" type="button">Content</button>
     </div>
 
-    <!-- ── MEDIA LIST ── -->
-    <div class="admin-card">
-      <h2>Current media</h2>
-      <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0;">Click a thumbnail to view or download it.</p>
-      <div id="ad-list"></div>
-    </div>
+    <div class="tab-panel" data-tab-panel="media">
 
-    <!-- ── KIOSK SETTINGS ── -->
-    <div class="admin-card">
-      <h2>Kiosk Settings</h2>
-
-      <div class="admin-field">
-        <label class="toggle-label" style="font-size:1rem;">
-          <input type="checkbox" id="setting-locked">
-          Lock screen — disable tap to explore
-        </label>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">When on, visitors cannot open the hub. Takes effect on the kiosk immediately.</p>
-      </div>
-
-      <div class="admin-field" style="margin-top:1.2rem;">
-        <label class="toggle-label" style="font-size:1rem;">
-          <input type="checkbox" id="setting-prayer-reel">
-          Show today's prayer times in the ad reel
-        </label>
-        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">When on, a prayer times slide plays once per loop through the reel. Takes effect on the kiosk immediately.</p>
-      </div>
-
-      <div class="admin-field" style="margin-top:1.2rem;">
-        <label>Prayer times slide duration (seconds)</label>
-        <input type="number" id="setting-prayer-reel-duration" value="15" min="5">
-        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">How long the prayer times slide stays on screen when it plays in the ad reel.</p>
-      </div>
-
-      <div class="admin-field" style="margin-top:1.2rem;">
-        <label>Hub idle timeout (seconds)</label>
-        <input type="number" id="setting-idle-timeout" value="30" min="5">
-        <p style="color:var(--text-muted);font-size:0.85rem;margin:0.3rem 0 0;">How long before the hub auto-closes and returns to the reel.</p>
-      </div>
-      <button class="btn btn-sm" id="btn-save-settings" style="margin-top:0.8rem;">Save Settings</button>
-      <div class="status-msg" id="settings-status"></div>
-    </div>
-
-    <!-- ── HUB CONTENT ── -->
-    <div class="admin-card">
-      <h2>Hub Content</h2>
-      <p style="color:var(--text-muted);font-size:0.9rem;margin-top:0;">Edit the text shown inside each tile on the kiosk hub screen.</p>
-
-      <div class="hub-content-section">
-        <h3>Announcements</h3>
-        <div id="announcements-list"></div>
-        <button class="btn btn-secondary btn-sm" id="btn-add-announcement">+ Add item</button>
-        <button class="btn btn-sm" id="btn-save-announcements">Save</button>
-        <div class="status-msg" id="announcements-status"></div>
-      </div>
-
-      <div class="hub-content-section">
-        <h3>Events</h3>
-        <div id="events-list"></div>
-        <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Add item</button>
-        <button class="btn btn-sm" id="btn-save-events">Save</button>
-        <div class="status-msg" id="events-status"></div>
-      </div>
-
-      <div class="hub-content-section">
-        <h3>Donate Info</h3>
+      <!-- ── UPLOAD ── -->
+      <div class="admin-card">
+        <h2>Upload new media</h2>
         <div class="admin-field">
-          <textarea id="donate-text" rows="5" placeholder="Enter donation instructions, links, or payment info…"></textarea>
+          <label>Image or video file</label>
+          <input type="file" id="upload-file" accept="image/*,video/*">
         </div>
-        <button class="btn btn-sm" id="btn-save-donate">Save</button>
-        <div class="status-msg" id="donate-status"></div>
+        <div class="admin-field">
+          <label>Title (for your reference)</label>
+          <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
+        </div>
+        <div class="admin-field" id="duration-field">
+          <label>Duration in seconds (images only)</label>
+          <input type="number" id="upload-duration" value="8" min="2">
+        </div>
+        <div class="admin-field">
+          <label>Order (lower = first)</label>
+          <input type="number" id="upload-order" value="1">
+        </div>
+        <button class="btn" id="btn-upload">Upload</button>
+        <div class="progress-bar" id="progress-wrap" style="display:none;">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
       </div>
 
-      <div class="hub-content-section">
-        <h3>About &amp; Contact</h3>
-        <div class="admin-field">
-          <textarea id="about-text" rows="5" placeholder="Address, phone number, social media, website…"></textarea>
+      <!-- ── MEDIA LIST ── -->
+      <div class="admin-card">
+        <h2>Current media</h2>
+        <p class="field-hint">Drag ⠿ to reorder · click a thumbnail to preview · ⬇ to download.</p>
+
+        <div class="ad-list-item ad-list-item-pinned" id="prayer-reel-row">
+          <div class="ad-list-thumb-icon">🕌</div>
+          <div class="ad-list-info">
+            <div class="fname">Prayer Times Slide</div>
+            <div class="meta">Plays once per loop through the reel</div>
+          </div>
+          <div class="ad-list-actions">
+            <label class="ad-duration-inline">
+              Duration (s)
+              <input type="number" id="setting-prayer-reel-duration" value="15" min="5">
+            </label>
+            <label class="toggle-label">
+              <input type="checkbox" id="setting-prayer-reel"> Active
+            </label>
+            <span class="badge-builtin">Built-in</span>
+          </div>
         </div>
-        <button class="btn btn-sm" id="btn-save-about">Save</button>
-        <div class="status-msg" id="about-status"></div>
+
+        <div id="ad-list"></div>
+      </div>
+
+    </div>
+
+    <div class="tab-panel hidden" data-tab-panel="settings">
+
+      <!-- ── KIOSK SETTINGS ── -->
+      <div class="admin-card">
+        <h2>Kiosk Settings</h2>
+
+        <div class="admin-field">
+          <label class="toggle-label toggle-label-lg">
+            <input type="checkbox" id="setting-locked">
+            Lock screen
+          </label>
+          <p class="field-hint">Visitors can't open the hub. Applies instantly.</p>
+        </div>
+
+        <div class="admin-field">
+          <label>Hub idle timeout (seconds)</label>
+          <input type="number" id="setting-idle-timeout" value="30" min="5">
+          <p class="field-hint">Hub auto-closes after this many seconds idle.</p>
+        </div>
+        <button class="btn btn-sm" id="btn-save-settings">Save Settings</button>
+      </div>
+
+    </div>
+
+    <div class="tab-panel hidden" data-tab-panel="content">
+
+      <!-- ── HUB CONTENT ── -->
+      <div class="admin-card">
+        <h2>Hub Content</h2>
+
+        <div class="hub-content-section">
+          <h3>Announcements</h3>
+          <div id="announcements-list"></div>
+          <button class="btn btn-secondary btn-sm" id="btn-add-announcement">+ Add item</button>
+          <button class="btn btn-sm" id="btn-save-announcements">Save</button>
+        </div>
+
+        <div class="hub-content-section">
+          <h3>Events</h3>
+          <div id="events-list"></div>
+          <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Add item</button>
+          <button class="btn btn-sm" id="btn-save-events">Save</button>
+        </div>
+
+        <div class="hub-content-section">
+          <h3>Donate Info</h3>
+          <div class="admin-field">
+            <textarea id="donate-text" rows="5" placeholder="Enter donation instructions, links, or payment info…"></textarea>
+          </div>
+          <button class="btn btn-sm" id="btn-save-donate">Save</button>
+        </div>
+
+        <div class="hub-content-section">
+          <h3>About &amp; Contact</h3>
+          <div class="admin-field">
+            <textarea id="about-text" rows="5" placeholder="Address, phone number, social media, website…"></textarea>
+          </div>
+          <button class="btn btn-sm" id="btn-save-about">Save</button>
+        </div>
+
       </div>
 
     </div>
 
   </div>
 
+</div>
+
+<!-- Toast notifications -->
+<div id="toast-container"></div>
+
+<!-- Media preview modal -->
+<div class="modal-overlay hidden" id="preview-modal">
+  <div class="modal-content">
+    <button class="modal-close" id="modal-close" type="button">✕</button>
+    <div class="modal-media" id="modal-media"></div>
+    <div class="modal-info">
+      <div class="modal-title" id="modal-title"></div>
+      <a class="btn btn-sm" id="modal-download" href="#" download>Download</a>
+    </div>
+  </div>
 </div>
 
 <!-- Firebase (compat SDK) -->
@@ -203,6 +234,66 @@ auth.onAuthStateChanged(user => {
 });
 
 /* ============================================================
+   TABS
+   ============================================================ */
+const tabButtons = document.querySelectorAll('.admin-tab-btn');
+const tabPanels = document.querySelectorAll('.tab-panel');
+
+function switchTab(name) {
+  tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
+  tabPanels.forEach(panel => panel.classList.toggle('hidden', panel.dataset.tabPanel !== name));
+  localStorage.setItem('adminActiveTab', name);
+}
+
+tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+switchTab(localStorage.getItem('adminActiveTab') || 'media');
+
+/* ============================================================
+   TOASTS
+   ============================================================ */
+function showToast(msg, type = 'success') {
+  const container = document.getElementById('toast-container');
+  const toast = document.createElement('div');
+  toast.className = 'toast toast-' + type;
+  toast.textContent = msg;
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(() => {
+    toast.classList.remove('show');
+    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+  }, 3000);
+}
+
+/* ============================================================
+   PREVIEW MODAL
+   ============================================================ */
+function toDownloadUrl(url) {
+  return url.replace('/upload/', '/upload/fl_attachment/');
+}
+
+function openPreview(ad) {
+  document.getElementById('modal-media').innerHTML = ad.type === 'video'
+    ? `<video src="${ad.url}" controls autoplay></video>`
+    : `<img src="${ad.url}">`;
+  document.getElementById('modal-title').textContent = ad.title || '(untitled)';
+  document.getElementById('modal-download').href = toDownloadUrl(ad.url);
+  document.getElementById('preview-modal').classList.remove('hidden');
+}
+
+function closePreview() {
+  document.getElementById('preview-modal').classList.add('hidden');
+  document.getElementById('modal-media').innerHTML = '';
+}
+
+document.getElementById('modal-close').addEventListener('click', closePreview);
+document.getElementById('preview-modal').addEventListener('click', e => {
+  if (e.target.id === 'preview-modal') closePreview();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closePreview();
+});
+
+/* ============================================================
    UPLOAD
    ============================================================ */
 document.getElementById('upload-file').addEventListener('change', () => {
@@ -214,13 +305,9 @@ document.getElementById('upload-file').addEventListener('change', () => {
 document.getElementById('btn-upload').addEventListener('click', () => {
   const fileInput = document.getElementById('upload-file');
   const file = fileInput.files[0];
-  const statusBox = document.getElementById('upload-status');
-  statusBox.textContent = '';
-  statusBox.className = 'status-msg';
 
   if (!file) {
-    statusBox.textContent = 'Choose a file first.';
-    statusBox.className = 'status-msg error';
+    showToast('Choose a file first.', 'error');
     return;
   }
 
@@ -230,8 +317,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
   const order = parseInt(document.getElementById('upload-order').value, 10) || 1;
 
   if (CLOUDINARY_CONFIG.cloudName.startsWith('PASTE_')) {
-    statusBox.textContent = 'Cloudinary isn\'t set up yet — add your cloud name and upload preset to firebase-config.js first.';
-    statusBox.className = 'status-msg error';
+    showToast('Cloudinary isn\'t set up yet — check firebase-config.js.', 'error');
     return;
   }
 
@@ -253,8 +339,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
 
   xhr.onload = () => {
     if (xhr.status < 200 || xhr.status >= 300) {
-      statusBox.textContent = 'Upload failed: ' + xhr.responseText;
-      statusBox.className = 'status-msg error';
+      showToast('Upload failed: ' + xhr.responseText, 'error');
       document.getElementById('btn-upload').disabled = false;
       return;
     }
@@ -265,8 +350,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
       active: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     }).then(() => {
-      statusBox.textContent = 'Uploaded! It will show on the kiosk automatically.';
-      statusBox.className = 'status-msg success';
+      showToast('Uploaded! It will show on the kiosk automatically.', 'success');
       fileInput.value = '';
       document.getElementById('upload-title').value = '';
       progressWrap.style.display = 'none';
@@ -276,8 +360,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
   };
 
   xhr.onerror = () => {
-    statusBox.textContent = 'Upload failed — check your internet connection.';
-    statusBox.className = 'status-msg error';
+    showToast('Upload failed — check your internet connection.', 'error');
     document.getElementById('btn-upload').disabled = false;
   };
 
@@ -285,11 +368,14 @@ document.getElementById('btn-upload').addEventListener('click', () => {
 });
 
 /* ============================================================
-   MEDIA LIST — view, reorder, edit, toggle, delete
+   MEDIA LIST — view, drag-reorder, edit, toggle, delete
    ============================================================ */
 let currentAdDocs = [];
+let dragSrcId = null;
 
 function loadAdList() {
+  document.getElementById('ad-list').innerHTML =
+    '<div class="loading-state"><div class="spinner"></div>Loading media…</div>';
   db.collection('ads').orderBy('order').onSnapshot(snapshot => {
     currentAdDocs = [];
     snapshot.forEach(doc => currentAdDocs.push({ id: doc.id, data: doc.data() }));
@@ -300,31 +386,36 @@ function loadAdList() {
 function renderAdList(docs) {
   const listEl = document.getElementById('ad-list');
   if (docs.length === 0) {
-    listEl.innerHTML = '<p>No media uploaded yet.</p>';
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">🖼️</div>
+        <p>No media yet — upload your first slide above.</p>
+      </div>`;
     return;
   }
   listEl.innerHTML = '';
 
-  docs.forEach((item, i) => {
+  docs.forEach(item => {
     const { id, data: ad } = item;
     const div = document.createElement('div');
     div.className = 'ad-list-item';
     div.dataset.id = id;
+    div.draggable = true;
 
-    const thumbHtml = ad.type === 'video'
-      ? `<a href="${ad.url}" target="_blank"><video class="ad-list-thumb" src="${ad.url}" muted></video></a>`
-      : `<a href="${ad.url}" target="_blank"><img class="ad-list-thumb" src="${ad.url}"></a>`;
+    const thumbInner = ad.type === 'video'
+      ? `<video class="ad-list-thumb" src="${ad.url}" muted></video>`
+      : `<img class="ad-list-thumb" src="${ad.url}">`;
 
     div.innerHTML = `
-      ${thumbHtml}
+      <div class="drag-handle" title="Drag to reorder">⠿</div>
+      <button type="button" class="ad-list-thumb-btn" data-id="${id}">${thumbInner}</button>
       <div class="ad-list-info">
         <div class="fname">${ad.title || '(untitled)'}</div>
         <div class="meta">${ad.type} · order ${ad.order}${ad.type === 'image' ? ' · ' + ad.duration + 's' : ''}</div>
       </div>
       <div class="ad-list-actions">
-        <button class="btn btn-sm btn-secondary btn-up" data-idx="${i}" ${i === 0 ? 'disabled' : ''}>↑</button>
-        <button class="btn btn-sm btn-secondary btn-down" data-idx="${i}" ${i === docs.length - 1 ? 'disabled' : ''}>↓</button>
-        <button class="btn btn-sm btn-secondary btn-edit" data-id="${id}" data-idx="${i}">Edit</button>
+        <button class="btn btn-sm btn-secondary btn-edit" data-id="${id}">Edit</button>
+        <a class="btn btn-sm btn-secondary btn-icon" href="${toDownloadUrl(ad.url)}" download title="Download">⬇</a>
         <label class="toggle-label">
           <input type="checkbox" ${ad.active ? 'checked' : ''} data-id="${id}" class="toggle-active"> Active
         </label>
@@ -334,50 +425,81 @@ function renderAdList(docs) {
     listEl.appendChild(div);
   });
 
-  listEl.querySelectorAll('.btn-up').forEach(btn => {
+  listEl.querySelectorAll('.ad-list-thumb-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx);
-      const a = currentAdDocs[i], b = currentAdDocs[i - 1];
-      swapOrder(a.id, a.data.order, b.id, b.data.order);
-    });
-  });
-
-  listEl.querySelectorAll('.btn-down').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const i = parseInt(btn.dataset.idx);
-      const a = currentAdDocs[i], b = currentAdDocs[i + 1];
-      swapOrder(a.id, a.data.order, b.id, b.data.order);
+      const adItem = currentAdDocs.find(d => d.id === btn.dataset.id);
+      if (adItem) openPreview(adItem.data);
     });
   });
 
   listEl.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => showEditForm(btn.dataset.id, parseInt(btn.dataset.idx)));
+    btn.addEventListener('click', () => showEditForm(btn.dataset.id));
   });
 
   listEl.querySelectorAll('.toggle-active').forEach(box => {
     box.addEventListener('change', () => {
-      db.collection('ads').doc(box.dataset.id).update({ active: box.checked });
+      db.collection('ads').doc(box.dataset.id).update({ active: box.checked })
+        .then(() => showToast(box.checked ? 'Media activated.' : 'Media deactivated.', 'success'));
     });
   });
 
   listEl.querySelectorAll('.delete-ad').forEach(btn => {
     btn.addEventListener('click', () => {
       if (confirm('Delete this item? This cannot be undone.')) {
-        db.collection('ads').doc(btn.dataset.id).delete();
+        db.collection('ads').doc(btn.dataset.id).delete()
+          .then(() => showToast('Deleted.', 'success'));
       }
+    });
+  });
+
+  attachDragHandlers(listEl);
+}
+
+function attachDragHandlers(listEl) {
+  listEl.querySelectorAll('.ad-list-item').forEach(item => {
+    item.addEventListener('dragstart', () => {
+      dragSrcId = item.dataset.id;
+      item.classList.add('dragging');
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      if (item.dataset.id !== dragSrcId) item.classList.add('drag-over');
+    });
+    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      const targetId = item.dataset.id;
+      if (targetId !== dragSrcId) reorderAds(dragSrcId, targetId);
     });
   });
 }
 
-function swapOrder(id1, order1, id2, order2) {
+function reorderAds(srcId, targetId) {
+  const srcIdx = currentAdDocs.findIndex(d => d.id === srcId);
+  const targetIdx = currentAdDocs.findIndex(d => d.id === targetId);
+  if (srcIdx === -1 || targetIdx === -1) return;
+
+  const reordered = currentAdDocs.slice();
+  const [moved] = reordered.splice(srcIdx, 1);
+  reordered.splice(targetIdx, 0, moved);
+
   const batch = db.batch();
-  batch.update(db.collection('ads').doc(id1), { order: order2 });
-  batch.update(db.collection('ads').doc(id2), { order: order1 });
-  batch.commit();
+  reordered.forEach((item, i) => {
+    const newOrder = i + 1;
+    if (item.data.order !== newOrder) {
+      batch.update(db.collection('ads').doc(item.id), { order: newOrder });
+    }
+  });
+  batch.commit().then(() => showToast('Reordered.', 'success'));
 }
 
-function showEditForm(id, idx) {
-  const ad = currentAdDocs[idx].data;
+function showEditForm(id) {
+  const ad = currentAdDocs.find(d => d.id === id).data;
   const item = document.querySelector(`#ad-list .ad-list-item[data-id="${id}"]`);
   item.innerHTML = `
     <div class="inline-edit-form">
@@ -406,7 +528,8 @@ function showEditForm(id, idx) {
       order: parseInt(item.querySelector('.edit-order').value, 10) || 1,
     };
     if (ad.type === 'image') updates.duration = parseInt(item.querySelector('.edit-duration').value, 10) || 8;
-    db.collection('ads').doc(id).update(updates);
+    db.collection('ads').doc(id).update(updates)
+      .then(() => showToast('Saved!', 'success'));
   });
   item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(currentAdDocs));
 }
@@ -432,10 +555,17 @@ function loadHubContent() {
 function renderHubList(containerId, items) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
+  if (items.length === 0) {
+    container.innerHTML = '<p class="field-hint">No items yet — add one below.</p>';
+    return;
+  }
   items.forEach(item => addHubItemRow(container, item.date || '', item.text || ''));
 }
 
 function addHubItemRow(container, date, text) {
+  const hint = container.querySelector('.field-hint');
+  if (hint) hint.remove();
+
   const row = document.createElement('div');
   row.className = 'hub-item-row';
   row.innerHTML = `
@@ -456,42 +586,34 @@ function getHubListItems(containerId) {
     .filter(item => item.text);
 }
 
-function saveHubList(docId, containerId, statusId) {
+function saveHubList(docId, containerId) {
   const items = getHubListItems(containerId);
-  const statusEl = document.getElementById(statusId);
   db.collection('hub_content').doc(docId).set({ items })
-    .then(() => showStatus(statusEl, 'Saved!', 'success'))
-    .catch(() => showStatus(statusEl, 'Error saving.', 'error'));
+    .then(() => showToast('Saved!', 'success'))
+    .catch(() => showToast('Error saving.', 'error'));
 }
 
-function saveHubText(docId, textareaId, statusId) {
+function saveHubText(docId, textareaId) {
   const text = document.getElementById(textareaId).value;
-  const statusEl = document.getElementById(statusId);
   db.collection('hub_content').doc(docId).set({ text })
-    .then(() => showStatus(statusEl, 'Saved!', 'success'))
-    .catch(() => showStatus(statusEl, 'Error saving.', 'error'));
-}
-
-function showStatus(el, msg, type) {
-  el.textContent = msg;
-  el.className = 'status-msg ' + type;
-  setTimeout(() => { el.textContent = ''; el.className = 'status-msg'; }, 3000);
+    .then(() => showToast('Saved!', 'success'))
+    .catch(() => showToast('Error saving.', 'error'));
 }
 
 document.getElementById('btn-add-announcement').addEventListener('click', () =>
   addHubItemRow(document.getElementById('announcements-list'), '', ''));
 document.getElementById('btn-save-announcements').addEventListener('click', () =>
-  saveHubList('announcements', 'announcements-list', 'announcements-status'));
+  saveHubList('announcements', 'announcements-list'));
 
 document.getElementById('btn-add-event').addEventListener('click', () =>
   addHubItemRow(document.getElementById('events-list'), '', ''));
 document.getElementById('btn-save-events').addEventListener('click', () =>
-  saveHubList('events', 'events-list', 'events-status'));
+  saveHubList('events', 'events-list'));
 
 document.getElementById('btn-save-donate').addEventListener('click', () =>
-  saveHubText('donate', 'donate-text', 'donate-status'));
+  saveHubText('donate', 'donate-text'));
 document.getElementById('btn-save-about').addEventListener('click', () =>
-  saveHubText('about', 'about-text', 'about-status'));
+  saveHubText('about', 'about-text'));
 
 /* ============================================================
    KIOSK SETTINGS
@@ -509,23 +631,27 @@ function loadKioskSettings() {
 
 document.getElementById('setting-locked').addEventListener('change', () => {
   const locked = document.getElementById('setting-locked').checked;
-  db.collection('settings').doc('kiosk').set({ locked }, { merge: true });
+  db.collection('settings').doc('kiosk').set({ locked }, { merge: true })
+    .then(() => showToast(locked ? 'Screen locked.' : 'Screen unlocked.', 'success'));
 });
 
 document.getElementById('setting-prayer-reel').addEventListener('change', () => {
   const enabled = document.getElementById('setting-prayer-reel').checked;
-  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimes: enabled } }, { merge: true });
+  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimes: enabled } }, { merge: true })
+    .then(() => showToast(enabled ? 'Prayer slide enabled.' : 'Prayer slide disabled.', 'success'));
+});
+
+document.getElementById('setting-prayer-reel-duration').addEventListener('change', () => {
+  const seconds = parseInt(document.getElementById('setting-prayer-reel-duration').value, 10) || 15;
+  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimesDurationSeconds: seconds } }, { merge: true })
+    .then(() => showToast('Saved.', 'success'));
 });
 
 document.getElementById('btn-save-settings').addEventListener('click', () => {
   const timeout = parseInt(document.getElementById('setting-idle-timeout').value, 10) || 30;
-  const prayerReelDuration = parseInt(document.getElementById('setting-prayer-reel-duration').value, 10) || 15;
-  db.collection('settings').doc('kiosk').set({
-    hubIdleTimeoutSeconds: timeout,
-    specialReels: { prayerTimesDurationSeconds: prayerReelDuration }
-  }, { merge: true })
-    .then(() => showStatus(document.getElementById('settings-status'), 'Saved!', 'success'))
-    .catch(err => showStatus(document.getElementById('settings-status'), 'Error: ' + err.message, 'error'));
+  db.collection('settings').doc('kiosk').set({ hubIdleTimeoutSeconds: timeout }, { merge: true })
+    .then(() => showToast('Saved!', 'success'))
+    .catch(err => showToast('Error: ' + err.message, 'error'));
 });
 </script>
 </body>
