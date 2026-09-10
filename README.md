@@ -135,24 +135,51 @@ clearly rather than silently charging a card, since none is on file.
 
 ## Part 5 — Set up the Android screen as a kiosk
 
-You confirmed the display runs Android — here's how to lock it to this
-site and have it survive reboots/power cycles unattended:
+This locks the tablet so it only shows the kiosk site — no one can back
+out to the home screen, settings, or other apps — and makes sure it
+comes back on its own after a power cut.
 
-1. On the Android device, install **Fully Kiosk Browser** from the
-   Google Play Store (free; the Plus/Pro license removes a small
-   watermark and unlocks scheduling, but isn't required).
-2. Open it, and when prompted, set the **Start URL** to your kiosk address:
-   `https://yourusername.github.io/masjid-kiosk/index.html`
-3. In Fully Kiosk's settings, turn on:
-   - **Kiosk Mode** (blocks the Android home/back buttons and status bar)
+We use an app called **FreeKiosk** to do the locking. It's free, does
+everything you need, and has no watermark or subscription (Fully Kiosk
+Browser, the more well-known option, charges to remove its watermark —
+FreeKiosk gives you the same result for free).
+
+**Setup steps:**
+
+1. On the tablet, install **FreeKiosk** from the Google Play Store.
+   (If it's not available for your device, you can download the app
+   file directly from
+   [github.com/RushB-fr/freekiosk/releases](https://github.com/RushB-fr/freekiosk/releases).)
+2. Open FreeKiosk and enter your kiosk's web address as the **Start URL**:
+   `https://crue1ix.github.io/masjid-kiosk/index.html`
+3. In FreeKiosk's settings, turn **ON**:
+   - **Kiosk Mode** — hides the home/back buttons and top status bar
    - **Keep screen on**
-   - **Start on boot** (so it comes back automatically after a power cut)
-   - **Auto reload on error / on connection loss** (recovers from wifi drops)
-   - Turn **off** Fully's own screensaver/motion-detection features — the
-     kiosk page already handles its own idle-to-ad-reel behavior, so you
-     don't want two systems fighting each other.
-4. Do a real test: unplug the screen, plug it back in, and confirm it
-   boots straight into the ad reel without you touching anything.
+   - **Launch on boot** — so it turns back on by itself after a power cut
+   - **Auto-reload on error/connection loss** — recovers from wifi drops
+   - Turn screensaver/motion-detection features **OFF** (the site already
+     handles switching between ads and the hub on its own)
+4. Test it for real: unplug the tablet, plug it back in, and make sure it
+   comes back up on its own showing the ad reel.
+
+**Optional — for a device sitting somewhere fully public with no one
+watching it:** FreeKiosk can also be set as the tablet's "Device Owner,"
+which is a stronger lock that even blocks a factory reset attempt. This
+needs a one-time command run from a computer — see the
+[FreeKiosk docs](https://github.com/RushB-fr/freekiosk) if you want this
+extra step. For most masjid setups, regular Kiosk Mode above is enough.
+
+**No-app alternative:** Android also has a built-in **Screen Pinning**
+feature (Settings → Security → Advanced → Screen pinning) that locks the
+screen to one app without installing anything. It's quick to set up, but
+someone can still get out of it by holding the Back button, so it's more
+of a stopgap than a real replacement for FreeKiosk.
+
+On top of all this, the kiosk site itself also has some built-in
+protection: it automatically goes fullscreen when tapped, keeps the
+screen from dimming/sleeping, and blocks things like right-click menus,
+dragging, and pinch-zooming. Think of this as a backup layer — FreeKiosk
+handles the main lock, and the site closes a few extra gaps on top of it.
 
 ---
 

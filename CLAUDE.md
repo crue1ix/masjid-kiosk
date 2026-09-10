@@ -12,7 +12,7 @@ Masjid Al-Hayy Kiosk — a touchscreen kiosk app for mosques. It shows an advert
 
 - **Local testing:** Open `index.html` or `admin.html` directly in a browser (requires internet for Firebase/Aladhan API)
 - **Production:** Push to `main` branch; GitHub Pages serves both HTML files
-- **Physical kiosk:** Fully Kiosk Browser (Android) pointed at the GitHub Pages URL
+- **Physical kiosk:** [FreeKiosk](https://github.com/RushB-fr/freekiosk) (Android, free/open-source, no watermark or subscription) pointed at the GitHub Pages URL, in Kiosk/Lock Task Mode. Fully Kiosk Browser also works but its watermark-removal tier is a paid add-on. See README Part 5.
 
 ## Architecture
 

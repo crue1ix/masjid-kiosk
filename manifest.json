@@ -1,0 +1,17 @@
+{
+  "name": "Masjid Al-Hayy Kiosk",
+  "short_name": "Al-Hayy Kiosk",
+  "start_url": "./index.html",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#121009",
+  "theme_color": "#121009",
+  "icons": [
+    {
+      "src": "assets/Al-Hayy Logo.png",
+      "sizes": "1095x950",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

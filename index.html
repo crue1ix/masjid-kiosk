@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#121009">
+<link rel="manifest" href="manifest.json">
 <title>Masjid Al-Hayy Kiosk</title>
 <link rel="stylesheet" href="style.css">
 </head>
@@ -99,6 +102,51 @@
 <script>
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+
+/* ============================================================
+   KIOSK LOCKDOWN — keeps the page fullscreen, awake, and free of
+   browser chrome/gestures that would let someone escape to the OS.
+   This is a second layer on top of the kiosk launcher app (e.g.
+   FreeKiosk) doing the OS-level lock; either one alone is enough
+   to stop casual exits, but together they cover more escape paths.
+   ============================================================ */
+function requestKioskFullscreen() {
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
+  if (!req) return;
+  try {
+    Promise.resolve(req.call(el)).catch(() => {});
+  } catch (e) { /* older browsers throw synchronously instead of rejecting */ }
+}
+
+// Fullscreen requires a user gesture in most browsers, so re-request it
+// on every tap in case the OS/browser kicked it out of fullscreen.
+document.addEventListener('click', requestKioskFullscreen);
+document.addEventListener('touchend', requestKioskFullscreen);
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try {
+    if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+  } catch (e) { /* not supported / permission denied — harmless */ }
+}
+requestWakeLock();
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') requestWakeLock();
+});
+
+// Block gestures/menus that would let someone leave the page or copy content.
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dragstart', e => e.preventDefault());
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('keydown', e => {
+  // Best-effort only — browsers ignore preventDefault on OS-level shortcuts,
+  // but this stops in-page navigation shortcuts a stray keyboard could trigger.
+  const blocked = ['F11', 'F5', 'F12'];
+  if (blocked.includes(e.key) || (e.ctrlKey && ['r', 'w', 't', 'n'].includes(e.key.toLowerCase()))) {
+    e.preventDefault();
+  }
+});
 
 /* ============================================================
    KIOSK SETTINGS (real-time from Firestore)
