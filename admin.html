@@ -16,15 +16,17 @@
   <!-- LOGIN CARD -->
   <div class="admin-card" id="login-card">
     <h1>Sign in</h1>
-    <div class="admin-field">
-      <label>Username</label>
-      <input type="text" id="login-username" autocomplete="username">
-    </div>
-    <div class="admin-field">
-      <label>Password</label>
-      <input type="password" id="login-password">
-    </div>
-    <button class="btn" id="btn-login">Sign in</button>
+    <form id="login-form">
+      <div class="admin-field">
+        <label>Username</label>
+        <input type="text" id="login-username" autocomplete="username">
+      </div>
+      <div class="admin-field">
+        <label>Password</label>
+        <input type="password" id="login-password" autocomplete="current-password">
+      </div>
+      <button class="btn" id="btn-login" type="submit">Sign in</button>
+    </form>
     <div class="status-msg error" id="login-error"></div>
   </div>
 
@@ -38,6 +40,7 @@
 
     <div class="admin-tabs" role="tablist">
       <button class="admin-tab-btn" data-tab="media" type="button">Media</button>
+      <button class="admin-tab-btn" data-tab="preview" type="button">Preview</button>
       <button class="admin-tab-btn" data-tab="settings" type="button">Settings</button>
       <button class="admin-tab-btn" data-tab="content" type="button">Content</button>
     </div>
@@ -49,7 +52,21 @@
         <h2>Upload new media</h2>
         <div class="admin-field">
           <label>Image or video file</label>
-          <input type="file" id="upload-file" accept="image/*,video/*">
+          <div class="upload-dropzone" id="upload-dropzone">
+            <input type="file" id="upload-file" accept="image/*,video/*">
+            <div class="upload-dropzone-hint" id="upload-dropzone-hint">
+              <div class="upload-dropzone-icon">📤</div>
+              Drag a file here, or click to browse
+            </div>
+            <div class="upload-preview hidden" id="upload-preview">
+              <div class="upload-preview-thumb" id="upload-preview-thumb"></div>
+              <div class="upload-preview-info">
+                <div class="fname" id="upload-preview-name"></div>
+                <div class="meta" id="upload-preview-meta"></div>
+              </div>
+            </div>
+          </div>
+          <div class="status-msg error hidden" id="upload-error"></div>
         </div>
         <div class="admin-field">
           <label>Title (for your reference)</label>
@@ -73,6 +90,9 @@
       <div class="admin-card">
         <h2>Current media</h2>
         <p class="field-hint">Drag ⠿ to reorder · click a thumbnail to preview · ⬇ to download.</p>
+        <div class="admin-field" id="media-search-field">
+          <input type="text" id="media-search" placeholder="Search by title or type…">
+        </div>
 
         <div class="ad-list-item ad-list-item-pinned" id="prayer-reel-row">
           <div class="ad-list-thumb-icon">🕌</div>
@@ -93,6 +113,23 @@
         </div>
 
         <div id="ad-list"></div>
+      </div>
+
+    </div>
+
+    <div class="tab-panel hidden" data-tab-panel="preview">
+
+      <!-- ── LIVE KIOSK PREVIEW ── -->
+      <div class="admin-card">
+        <h2>Live Kiosk Preview</h2>
+        <p class="field-hint">Shows the kiosk in real time — tap the preview like a visitor would.</p>
+        <div class="preview-toolbar">
+          <button class="btn btn-sm btn-secondary" id="btn-preview-refresh">↻ Refresh</button>
+          <button class="btn btn-sm btn-secondary" id="btn-preview-open">↗ Open in new tab</button>
+        </div>
+        <div class="kiosk-preview-stage" id="kiosk-preview-stage">
+          <iframe id="kiosk-preview-frame" title="Live kiosk preview"></iframe>
+        </div>
       </div>
 
     </div>
@@ -132,6 +169,7 @@
           <div id="announcements-list"></div>
           <button class="btn btn-secondary btn-sm" id="btn-add-announcement">+ Add item</button>
           <button class="btn btn-sm" id="btn-save-announcements">Save</button>
+          <span class="dirty-badge hidden" id="announcements-dirty">● Unsaved changes</span>
         </div>
 
         <div class="hub-content-section">
@@ -139,6 +177,7 @@
           <div id="events-list"></div>
           <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Add item</button>
           <button class="btn btn-sm" id="btn-save-events">Save</button>
+          <span class="dirty-badge hidden" id="events-dirty">● Unsaved changes</span>
         </div>
 
         <div class="hub-content-section">
@@ -147,6 +186,7 @@
             <textarea id="donate-text" rows="5" placeholder="Enter donation instructions, links, or payment info…"></textarea>
           </div>
           <button class="btn btn-sm" id="btn-save-donate">Save</button>
+          <span class="dirty-badge hidden" id="donate-dirty">● Unsaved changes</span>
         </div>
 
         <div class="hub-content-section">
@@ -155,6 +195,7 @@
             <textarea id="about-text" rows="5" placeholder="Address, phone number, social media, website…"></textarea>
           </div>
           <button class="btn btn-sm" id="btn-save-about">Save</button>
+          <span class="dirty-badge hidden" id="about-dirty">● Unsaved changes</span>
         </div>
 
       </div>
@@ -199,7 +240,8 @@ const adminContent = document.getElementById('admin-content');
 /* ============================================================
    AUTH
    ============================================================ */
-document.getElementById('btn-login').addEventListener('click', () => {
+document.getElementById('login-form').addEventListener('submit', e => {
+  e.preventDefault();
   const username = document.getElementById('login-username').value.trim().toLowerCase();
   const password = document.getElementById('login-password').value;
   const errorBox = document.getElementById('login-error');
@@ -227,10 +269,54 @@ auth.onAuthStateChanged(user => {
     loadAdList();
     loadHubContent();
     loadKioskSettings();
+    // Re-apply the restored tab now that #admin-content is actually visible — if it
+    // was mounted earlier while hidden (display:none), the preview iframe would have
+    // been scaled against a zero-width stage and rendered invisible.
+    switchTab(localStorage.getItem('adminActiveTab') || 'media');
   } else {
     loginCard.classList.remove('hidden');
     adminContent.classList.add('hidden');
   }
+});
+
+/* ============================================================
+   LIVE KIOSK PREVIEW
+   (declared before TABS — switchTab()'s initial call below can
+   reference mountPreviewFrame() synchronously on the same pass)
+   ============================================================ */
+const KIOSK_PREVIEW_WIDTH = 2160;
+const KIOSK_PREVIEW_HEIGHT = 3840;
+let previewMounted = false;
+
+function mountPreviewFrame() {
+  const frame = document.getElementById('kiosk-preview-frame');
+  if (!previewMounted) {
+    frame.src = 'index.html';
+    previewMounted = true;
+  }
+  updatePreviewScale();
+}
+
+function updatePreviewScale() {
+  const stage = document.getElementById('kiosk-preview-stage');
+  const frame = document.getElementById('kiosk-preview-frame');
+  if (!stage.clientWidth) return; // stage is hidden (e.g. tab not visible yet) — nothing to measure
+  const scale = stage.clientWidth / KIOSK_PREVIEW_WIDTH;
+  frame.style.width = KIOSK_PREVIEW_WIDTH + 'px';
+  frame.style.height = KIOSK_PREVIEW_HEIGHT + 'px';
+  frame.style.transform = `scale(${scale})`;
+}
+
+new ResizeObserver(updatePreviewScale).observe(document.getElementById('kiosk-preview-stage'));
+window.addEventListener('resize', updatePreviewScale);
+
+document.getElementById('btn-preview-refresh').addEventListener('click', () => {
+  const frame = document.getElementById('kiosk-preview-frame');
+  frame.src = 'index.html';
+});
+
+document.getElementById('btn-preview-open').addEventListener('click', () => {
+  window.open('index.html', '_blank');
 });
 
 /* ============================================================
@@ -243,6 +329,7 @@ function switchTab(name) {
   tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
   tabPanels.forEach(panel => panel.classList.toggle('hidden', panel.dataset.tabPanel !== name));
   localStorage.setItem('adminActiveTab', name);
+  if (name === 'preview') mountPreviewFrame();
 }
 
 tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
@@ -251,17 +338,39 @@ switchTab(localStorage.getItem('adminActiveTab') || 'media');
 /* ============================================================
    TOASTS
    ============================================================ */
-function showToast(msg, type = 'success') {
+function showToast(msg, type = 'success', action = null) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = 'toast toast-' + type;
-  toast.textContent = msg;
-  container.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('show'));
-  setTimeout(() => {
+
+  const text = document.createElement('span');
+  text.textContent = msg;
+  toast.appendChild(text);
+
+  const duration = action ? 5000 : 3000;
+  let dismissed = false;
+  const dismiss = () => {
+    if (dismissed) return;
+    dismissed = true;
     toast.classList.remove('show');
     toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-  }, 3000);
+  };
+
+  if (action) {
+    const actionBtn = document.createElement('button');
+    actionBtn.className = 'toast-action';
+    actionBtn.type = 'button';
+    actionBtn.textContent = action.label;
+    actionBtn.addEventListener('click', () => {
+      action.onClick();
+      dismiss();
+    });
+    toast.appendChild(actionBtn);
+  }
+
+  container.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add('show'));
+  setTimeout(dismiss, duration);
 }
 
 /* ============================================================
@@ -296,10 +405,87 @@ document.addEventListener('keydown', e => {
 /* ============================================================
    UPLOAD
    ============================================================ */
-document.getElementById('upload-file').addEventListener('change', () => {
-  const file = document.getElementById('upload-file').files[0];
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
+
+function formatBytes(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function validateUploadFile(file) {
+  if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
+    return 'Only image or video files are supported.';
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    return `File is too large (${formatBytes(file.size)}). Max size is ${formatBytes(MAX_UPLOAD_BYTES)}.`;
+  }
+  return null;
+}
+
+function showUploadError(msg) {
+  const errorBox = document.getElementById('upload-error');
+  if (msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+  } else {
+    errorBox.textContent = '';
+    errorBox.classList.add('hidden');
+  }
+}
+
+function updateUploadPreview(file) {
+  const hint = document.getElementById('upload-dropzone-hint');
+  const preview = document.getElementById('upload-preview');
+  const thumb = document.getElementById('upload-preview-thumb');
+  const nameEl = document.getElementById('upload-preview-name');
+  const metaEl = document.getElementById('upload-preview-meta');
+
+  if (!file) {
+    hint.classList.remove('hidden');
+    preview.classList.add('hidden');
+    thumb.innerHTML = '';
+    showUploadError(null);
+    return;
+  }
+
+  const err = validateUploadFile(file);
+  showUploadError(err);
+
+  const objectUrl = URL.createObjectURL(file);
+  thumb.innerHTML = file.type.startsWith('video')
+    ? `<video src="${objectUrl}" muted></video>`
+    : `<img src="${objectUrl}">`;
+  nameEl.textContent = file.name;
+  metaEl.textContent = `${file.type.startsWith('video') ? 'Video' : 'Image'} · ${formatBytes(file.size)}`;
+  hint.classList.add('hidden');
+  preview.classList.remove('hidden');
+
   document.getElementById('duration-field').style.display =
-    (file && file.type.startsWith('video')) ? 'none' : '';
+    file.type.startsWith('video') ? 'none' : '';
+}
+
+const dropzone = document.getElementById('upload-dropzone');
+const fileInput = document.getElementById('upload-file');
+
+fileInput.addEventListener('change', () => updateUploadPreview(fileInput.files[0]));
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, e => {
+    e.preventDefault();
+    dropzone.classList.add('drag-over');
+  });
+});
+['dragleave', 'dragend'].forEach(evt => {
+  dropzone.addEventListener(evt, () => dropzone.classList.remove('drag-over'));
+});
+dropzone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (!file) return;
+  fileInput.files = e.dataTransfer.files;
+  updateUploadPreview(file);
 });
 
 document.getElementById('btn-upload').addEventListener('click', () => {
@@ -308,6 +494,13 @@ document.getElementById('btn-upload').addEventListener('click', () => {
 
   if (!file) {
     showToast('Choose a file first.', 'error');
+    return;
+  }
+
+  const validationError = validateUploadFile(file);
+  if (validationError) {
+    showUploadError(validationError);
+    showToast(validationError, 'error');
     return;
   }
 
@@ -353,6 +546,7 @@ document.getElementById('btn-upload').addEventListener('click', () => {
       showToast('Uploaded! It will show on the kiosk automatically.', 'success');
       fileInput.value = '';
       document.getElementById('upload-title').value = '';
+      updateUploadPreview(null);
       progressWrap.style.display = 'none';
       progressFill.style.width = '0%';
       document.getElementById('btn-upload').disabled = false;
@@ -371,7 +565,8 @@ document.getElementById('btn-upload').addEventListener('click', () => {
    MEDIA LIST — view, drag-reorder, edit, toggle, delete
    ============================================================ */
 let currentAdDocs = [];
-let dragSrcId = null;
+let pendingDeleteIds = new Set();
+let mediaSearchQuery = '';
 
 function loadAdList() {
   document.getElementById('ad-list').innerHTML =
@@ -379,18 +574,37 @@ function loadAdList() {
   db.collection('ads').orderBy('order').onSnapshot(snapshot => {
     currentAdDocs = [];
     snapshot.forEach(doc => currentAdDocs.push({ id: doc.id, data: doc.data() }));
-    renderAdList(currentAdDocs);
+    renderAdList(getFilteredAdDocs());
   });
 }
 
+function getFilteredAdDocs() {
+  const q = mediaSearchQuery.trim().toLowerCase();
+  return currentAdDocs.filter(item =>
+    !pendingDeleteIds.has(item.id) &&
+    (!q || (item.data.title || '').toLowerCase().includes(q) || (item.data.type || '').toLowerCase().includes(q))
+  );
+}
+
+document.getElementById('media-search').addEventListener('input', e => {
+  mediaSearchQuery = e.target.value;
+  renderAdList(getFilteredAdDocs());
+});
+
 function renderAdList(docs) {
   const listEl = document.getElementById('ad-list');
+  const isFiltered = mediaSearchQuery.trim() !== '';
+
   if (docs.length === 0) {
-    listEl.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">🖼️</div>
-        <p>No media yet — upload your first slide above.</p>
-      </div>`;
+    listEl.innerHTML = isFiltered
+      ? `<div class="empty-state">
+          <div class="empty-state-icon">🔍</div>
+          <p>No media matches "${mediaSearchQuery.trim()}".</p>
+        </div>`
+      : `<div class="empty-state">
+          <div class="empty-state-icon">🖼️</div>
+          <p>No media yet — upload your first slide above.</p>
+        </div>`;
     return;
   }
   listEl.innerHTML = '';
@@ -400,7 +614,7 @@ function renderAdList(docs) {
     const div = document.createElement('div');
     div.className = 'ad-list-item';
     div.dataset.id = id;
-    div.draggable = true;
+    div.draggable = !isFiltered;
 
     const thumbInner = ad.type === 'video'
       ? `<video class="ad-list-thumb" src="${ad.url}" muted></video>`
@@ -444,39 +658,70 @@ function renderAdList(docs) {
   });
 
   listEl.querySelectorAll('.delete-ad').forEach(btn => {
-    btn.addEventListener('click', () => {
-      if (confirm('Delete this item? This cannot be undone.')) {
-        db.collection('ads').doc(btn.dataset.id).delete()
-          .then(() => showToast('Deleted.', 'success'));
-      }
-    });
+    btn.addEventListener('click', () => showDeleteConfirm(btn.dataset.id));
   });
 
-  attachDragHandlers(listEl);
+  if (!isFiltered) attachDragReorder(listEl, '.ad-list-item', reorderAds);
 }
 
-function attachDragHandlers(listEl) {
-  listEl.querySelectorAll('.ad-list-item').forEach(item => {
-    item.addEventListener('dragstart', () => {
-      dragSrcId = item.dataset.id;
-      item.classList.add('dragging');
-    });
-    item.addEventListener('dragend', () => {
-      item.classList.remove('dragging');
-      listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-    });
-    item.addEventListener('dragover', e => {
-      e.preventDefault();
-      if (item.dataset.id !== dragSrcId) item.classList.add('drag-over');
-    });
-    item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
-    item.addEventListener('drop', e => {
-      e.preventDefault();
-      item.classList.remove('drag-over');
-      const targetId = item.dataset.id;
-      if (targetId !== dragSrcId) reorderAds(dragSrcId, targetId);
-    });
+function showDeleteConfirm(id) {
+  const item = document.querySelector(`#ad-list .ad-list-item[data-id="${id}"]`);
+  const actions = item && item.querySelector('.ad-list-actions');
+  if (!actions) return;
+  actions.innerHTML = `
+    <span class="confirm-prompt">Delete this item?</span>
+    <button type="button" class="btn btn-sm btn-danger confirm-delete-yes">Delete</button>
+    <button type="button" class="btn btn-sm btn-secondary confirm-delete-no">Cancel</button>
+  `;
+  actions.querySelector('.confirm-delete-yes').addEventListener('click', () => scheduleAdDelete(id));
+  actions.querySelector('.confirm-delete-no').addEventListener('click', () => renderAdList(getFilteredAdDocs()));
+}
+
+function scheduleAdDelete(id) {
+  pendingDeleteIds.add(id);
+  renderAdList(getFilteredAdDocs());
+  const timeoutId = setTimeout(() => {
+    pendingDeleteIds.delete(id);
+    db.collection('ads').doc(id).delete();
+  }, 5000);
+  showToast('Deleted.', 'success', {
+    label: 'Undo',
+    onClick: () => {
+      clearTimeout(timeoutId);
+      pendingDeleteIds.delete(id);
+      renderAdList(getFilteredAdDocs());
+    }
   });
+}
+
+/* Generic drag-reorder: owns drag visuals + DOM/order handoff only.
+   `onDrop(srcId, targetId)` decides what reordering means for the caller. */
+let dragSrcId = null;
+
+function makeRowDraggable(item, listEl, onDrop) {
+  item.addEventListener('dragstart', () => {
+    dragSrcId = item.dataset.id;
+    item.classList.add('dragging');
+  });
+  item.addEventListener('dragend', () => {
+    item.classList.remove('dragging');
+    listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+  });
+  item.addEventListener('dragover', e => {
+    e.preventDefault();
+    if (item.dataset.id !== dragSrcId) item.classList.add('drag-over');
+  });
+  item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
+  item.addEventListener('drop', e => {
+    e.preventDefault();
+    item.classList.remove('drag-over');
+    const targetId = item.dataset.id;
+    if (targetId !== dragSrcId) onDrop(dragSrcId, targetId);
+  });
+}
+
+function attachDragReorder(listEl, itemSelector, onDrop) {
+  listEl.querySelectorAll(itemSelector).forEach(item => makeRowDraggable(item, listEl, onDrop));
 }
 
 function reorderAds(srcId, targetId) {
@@ -531,18 +776,59 @@ function showEditForm(id) {
     db.collection('ads').doc(id).update(updates)
       .then(() => showToast('Saved!', 'success'));
   });
-  item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(currentAdDocs));
+  item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(getFilteredAdDocs()));
 }
+
+/* ============================================================
+   DIRTY-STATE TRACKING (Content tab — protects against silent data loss)
+   ============================================================ */
+let dirtySections = new Set();
+
+function markSectionDirty(section) {
+  dirtySections.add(section);
+  const badge = document.getElementById(section + '-dirty');
+  if (badge) badge.classList.remove('hidden');
+}
+
+function clearSectionDirty(section) {
+  dirtySections.delete(section);
+  const badge = document.getElementById(section + '-dirty');
+  if (badge) badge.classList.add('hidden');
+}
+
+window.addEventListener('beforeunload', e => {
+  if (dirtySections.size > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 /* ============================================================
    HUB CONTENT EDITOR
    ============================================================ */
+function tryParseDateToISO(str) {
+  if (!str) return null;
+  const d = new Date(str);
+  if (isNaN(d.getTime())) return null;
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatDateForDisplay(isoStr) {
+  const [y, m, d] = isoStr.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
 function loadHubContent() {
+  const listLoadingHtml = '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
+  document.getElementById('announcements-list').innerHTML = listLoadingHtml;
+  document.getElementById('events-list').innerHTML = listLoadingHtml;
+
   db.collection('hub_content').doc('announcements').get().then(doc => {
-    renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : []);
+    renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : [], 'announcements');
   });
   db.collection('hub_content').doc('events').get().then(doc => {
-    renderHubList('events-list', doc.exists ? (doc.data().items || []) : []);
+    renderHubList('events-list', doc.exists ? (doc.data().items || []) : [], 'events');
   });
   db.collection('hub_content').doc('donate').get().then(doc => {
     if (doc.exists) document.getElementById('donate-text').value = doc.data().text || '';
@@ -552,68 +838,137 @@ function loadHubContent() {
   });
 }
 
-function renderHubList(containerId, items) {
+function renderHubList(containerId, items, sectionName) {
   const container = document.getElementById(containerId);
   container.innerHTML = '';
   if (items.length === 0) {
-    container.innerHTML = '<p class="field-hint">No items yet — add one below.</p>';
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📋</div>
+        <p>No items yet — add one below.</p>
+      </div>`;
     return;
   }
-  items.forEach(item => addHubItemRow(container, item.date || '', item.text || ''));
+  items.forEach(item => addHubItemRow(container, item.date || '', item.text || '', sectionName));
 }
 
-function addHubItemRow(container, date, text) {
-  const hint = container.querySelector('.field-hint');
-  if (hint) hint.remove();
+let hubRowCounter = 0;
+
+function hubReorderHandler(containerId, sectionName) {
+  return (srcId, targetId) => {
+    const container = document.getElementById(containerId);
+    const srcRow = container.querySelector(`.hub-item-row[data-id="${srcId}"]`);
+    const targetRow = container.querySelector(`.hub-item-row[data-id="${targetId}"]`);
+    if (!srcRow || !targetRow) return;
+    container.insertBefore(srcRow, targetRow);
+    markSectionDirty(sectionName);
+  };
+}
+
+function addHubItemRow(container, date, text, sectionName) {
+  const empty = container.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  const rowId = 'hubrow-' + (++hubRowCounter);
+  const isoDate = tryParseDateToISO(date);
+  const safeDate = date.replace(/"/g, '&quot;');
+  const safeText = text.replace(/"/g, '&quot;');
 
   const row = document.createElement('div');
   row.className = 'hub-item-row';
+  row.dataset.id = rowId;
+  row.draggable = true;
   row.innerHTML = `
-    <input type="text" class="hub-item-date" placeholder="Date (e.g. Sep 1)" value="${date}">
-    <input type="text" class="hub-item-text" placeholder="Description" value="${text}">
-    <button class="btn btn-sm btn-danger remove-hub-item">✕</button>
+    <div class="drag-handle" title="Drag to reorder">⠿</div>
+    <input type="date" class="hub-item-date" value="${isoDate || ''}" data-original="${safeDate}" title="${(!isoDate && date) ? 'Originally: ' + safeDate : ''}">
+    <input type="text" class="hub-item-text" placeholder="Description" value="${safeText}">
+    <button type="button" class="btn btn-sm btn-danger remove-hub-item">✕</button>
+    ${(!isoDate && date) ? `<div class="hub-item-date-hint field-hint">currently: ${date}</div>` : ''}
   `;
-  row.querySelector('.remove-hub-item').addEventListener('click', () => row.remove());
+  row.querySelector('.remove-hub-item').addEventListener('click', () => {
+    row.remove();
+    markSectionDirty(sectionName);
+    if (!container.querySelector('.hub-item-row')) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">📋</div>
+          <p>No items yet — add one below.</p>
+        </div>`;
+    }
+  });
+  row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => markSectionDirty(sectionName)));
   container.appendChild(row);
+  makeRowDraggable(row, container, hubReorderHandler(container.id, sectionName));
 }
 
 function getHubListItems(containerId) {
   return Array.from(document.querySelectorAll(`#${containerId} .hub-item-row`))
-    .map(row => ({
-      date: row.querySelector('.hub-item-date').value.trim(),
-      text: row.querySelector('.hub-item-text').value.trim(),
-    }))
+    .map(row => {
+      const dateInput = row.querySelector('.hub-item-date');
+      const date = dateInput.value ? formatDateForDisplay(dateInput.value) : (dateInput.dataset.original || '');
+      return {
+        date,
+        text: row.querySelector('.hub-item-text').value.trim(),
+      };
+    })
     .filter(item => item.text);
 }
 
-function saveHubList(docId, containerId) {
+function saveHubList(docId, containerId, sectionName, btn) {
   const items = getHubListItems(containerId);
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
   db.collection('hub_content').doc(docId).set({ items })
-    .then(() => showToast('Saved!', 'success'))
-    .catch(() => showToast('Error saving.', 'error'));
+    .then(() => {
+      showToast('Saved!', 'success');
+      clearSectionDirty(sectionName);
+    })
+    .catch(() => showToast('Error saving.', 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
 }
 
-function saveHubText(docId, textareaId) {
+function saveHubText(docId, textareaId, sectionName, btn) {
   const text = document.getElementById(textareaId).value;
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
   db.collection('hub_content').doc(docId).set({ text })
-    .then(() => showToast('Saved!', 'success'))
-    .catch(() => showToast('Error saving.', 'error'));
+    .then(() => {
+      showToast('Saved!', 'success');
+      clearSectionDirty(sectionName);
+    })
+    .catch(() => showToast('Error saving.', 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
 }
 
-document.getElementById('btn-add-announcement').addEventListener('click', () =>
-  addHubItemRow(document.getElementById('announcements-list'), '', ''));
+document.getElementById('btn-add-announcement').addEventListener('click', () => {
+  addHubItemRow(document.getElementById('announcements-list'), '', '', 'announcements');
+  markSectionDirty('announcements');
+});
 document.getElementById('btn-save-announcements').addEventListener('click', () =>
-  saveHubList('announcements', 'announcements-list'));
+  saveHubList('announcements', 'announcements-list', 'announcements', document.getElementById('btn-save-announcements')));
 
-document.getElementById('btn-add-event').addEventListener('click', () =>
-  addHubItemRow(document.getElementById('events-list'), '', ''));
+document.getElementById('btn-add-event').addEventListener('click', () => {
+  addHubItemRow(document.getElementById('events-list'), '', '', 'events');
+  markSectionDirty('events');
+});
 document.getElementById('btn-save-events').addEventListener('click', () =>
-  saveHubList('events', 'events-list'));
+  saveHubList('events', 'events-list', 'events', document.getElementById('btn-save-events')));
 
+document.getElementById('donate-text').addEventListener('input', () => markSectionDirty('donate'));
 document.getElementById('btn-save-donate').addEventListener('click', () =>
-  saveHubText('donate', 'donate-text'));
+  saveHubText('donate', 'donate-text', 'donate', document.getElementById('btn-save-donate')));
+
+document.getElementById('about-text').addEventListener('input', () => markSectionDirty('about'));
 document.getElementById('btn-save-about').addEventListener('click', () =>
-  saveHubText('about', 'about-text'));
+  saveHubText('about', 'about-text', 'about', document.getElementById('btn-save-about')));
 
 /* ============================================================
    KIOSK SETTINGS

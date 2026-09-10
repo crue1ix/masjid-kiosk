@@ -63,3 +63,10 @@ Firestore rules: public reads; authenticated writes only.
 ### CSS design tokens
 
 Defined as CSS custom properties in `style.css`: `--bg-deep`, `--gold`, etc. Star-wipe and fade animations are keyframe-defined there.
+
+### Interface of the Kiosk
+
+the kiosk is 3840 x 2160 --  side x top
+
+
+### 
