@@ -528,9 +528,21 @@ img, video {
   justify-content: safe center;
 }
 
+.detail-body:has(.flyer-image) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .detail-body img {
   max-width: 100%;
   border-radius: var(--radius);
+}
+
+.flyer-image {
+  max-height: 100%;
+  width: auto;
+  object-fit: contain;
 }
 
 .prayer-grid {

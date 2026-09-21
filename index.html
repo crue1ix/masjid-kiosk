@@ -52,10 +52,10 @@
         <div class="hub-tile-label">Prayer Times</div>
       </div>
     </div>
-    <div class="hub-tile" data-panel="map">
+    <div class="hub-tile" data-panel="whatsapp">
       <div>
-        <img src="assets/Masjid Map.png" class="hub-tile-icon" alt="Masjid Map">
-        <div class="hub-tile-label">Masjid Map</div>
+        <img src="assets/WhatsApp Icon.webp" class="hub-tile-icon" alt="Join WhatsApp">
+        <div class="hub-tile-label">Join WhatsApp</div>
       </div>
     </div>
     <div class="hub-tile" data-panel="announcements">
@@ -370,10 +370,9 @@ function loadPanel(panel) {
       t => renderPrayerTimes(body, t),
       () => body.innerHTML = '<p>Could not load prayer times — check the internet connection.</p>'
     );
-  } else if (panel === 'map') {
-    title.textContent = 'Masjid Map';
-    // Replace assets/map.jpg with your actual floor plan / site map image
-    body.innerHTML = '<img src="assets/map.jpg" alt="Masjid map" onerror="this.outerHTML=\'<p>Add your map image at assets/map.jpg to show it here.</p>\'">';
+  } else if (panel === 'whatsapp') {
+    title.textContent = 'Join WhatsApp';
+    body.innerHTML = '<img src="assets/WhatsApp Invite Flyer.jpeg" class="flyer-image" alt="Scan to join our WhatsApp community">';
   } else if (panel === 'announcements') {
     title.textContent = 'Announcements';
     loadListDoc('hub_content/announcements', body, 'No announcements right now.');
