@@ -111,8 +111,8 @@ img, video {
 }
 
 .ad-prayer-slide .star-field {
-  background-size: 100px 100px;
-  opacity: 0.2;
+  background-size: 60px 60px;
+  opacity: 0.15;
 }
 
 .ad-prayer-header {
@@ -388,7 +388,7 @@ img, video {
 }
 
 .hub-logo {
-  height: 13rem;
+  height: 10rem;
   width: auto;
   object-fit: contain;
 }
