@@ -457,7 +457,7 @@ img, video {
 
 .hub-tile-label {
   font-family: 'Reem Kufi', sans-serif;
-  font-size: 2.2rem;
+  font-size: 1.9rem;
   color: var(--text-light);
 }
 
@@ -474,6 +474,13 @@ img, video {
   object-fit: contain;
   margin: 0 auto 1.2rem;
   display: block;
+}
+
+/* WhatsApp icon has little built-in padding, so it reads bigger than the other
+   tile icons at the same box size — shrink it to match visually. */
+.hub-tile-icon-whatsapp {
+  width: 5.5rem;
+  height: 5.5rem;
 }
 
 /* Detail panel (opens over the grid when a tile is tapped) */
