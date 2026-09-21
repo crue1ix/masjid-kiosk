@@ -563,6 +563,12 @@ img, video {
   justify-content: safe center;
 }
 
+.detail-body:has(.calendar-view) {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 .donate-content {
   display: flex;
   align-items: center;
@@ -651,6 +657,160 @@ img, video {
   color: var(--gold);
   font-size: 0.9rem;
   margin-bottom: 0.2rem;
+}
+
+/* ============================================================
+   EVENTS PANEL — Programs calendar
+   Fixed top (calendar)/bottom (selected day) split that always
+   fits the panel height — this view must never need to scroll.
+   ============================================================ */
+.calendar-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: 1rem;
+}
+
+.calendar-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex: 0 0 auto;
+}
+
+.calendar-month-label {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--gold);
+  font-size: 1.4rem;
+}
+
+.calendar-nav-btn {
+  background: var(--bg-panel-light);
+  border: 1px solid var(--gold);
+  border-radius: 0.8rem;
+  color: var(--text-light);
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.5rem 1.1rem;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.calendar-nav-btn:active {
+  transform: scale(0.92);
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  grid-template-rows: auto repeat(6, 1fr);
+  gap: 0.5rem;
+  flex: 1.2;
+  min-height: 0;
+}
+
+.calendar-weekday {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding-bottom: 0.3rem;
+}
+
+.calendar-day {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-light);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.calendar-day:active {
+  transform: scale(0.94);
+}
+
+.calendar-day-empty {
+  visibility: hidden;
+  cursor: default;
+}
+
+.calendar-day-num {
+  font-size: 1.05rem;
+}
+
+.calendar-day-today {
+  border-color: var(--gold);
+}
+
+.calendar-day-selected {
+  background: var(--bg-panel-light);
+  border-color: var(--gold);
+}
+
+.calendar-day-dot {
+  position: absolute;
+  bottom: 0.35rem;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--gold);
+}
+
+.calendar-day-detail {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-top: 1px solid var(--bg-panel-light);
+  padding-top: 1rem;
+}
+
+.calendar-selected-date {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--text-light);
+  font-size: 1.3rem;
+  margin-bottom: 0.4rem;
+}
+
+.calendar-occasion {
+  color: var(--gold);
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 1.2rem;
+}
+
+.calendar-hijri-subtitle {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  margin-bottom: 0.6rem;
+}
+
+.calendar-program-item {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid var(--bg-panel-light);
+  padding: 0.6rem 0;
+}
+
+.calendar-program-item:last-child {
+  border-bottom: none;
+}
+
+.calendar-program-time {
+  color: var(--gold);
+  min-width: 6rem;
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.calendar-program-note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.2rem;
 }
 
 /* ============================================================

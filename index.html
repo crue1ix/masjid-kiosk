@@ -196,7 +196,11 @@ const adWrap = document.getElementById('ad-media-wrap');
 // (Filtering "active" here in JS, rather than in the query, avoids needing
 // a Firestore composite index.)
 db.collection('ads').orderBy('order').onSnapshot(snapshot => {
-  rawAds = snapshot.docs.map(doc => doc.data()).filter(ad => ad.active);
+  const now = Date.now();
+  rawAds = snapshot.docs
+    .map(doc => doc.data())
+    .filter(ad => ad.active)
+    .filter(ad => !ad.expiresAt || ad.expiresAt.toMillis() > now);
   rebuildPlaylist();
 });
 
@@ -290,6 +294,10 @@ const hubGrid = document.getElementById('hub-grid');
 const hubDetail = document.getElementById('hub-detail');
 const hubHeader = document.querySelector('.hub-header');
 let hubIdleTimer = null;
+let calendarViewDate = new Date();
+let calendarSelectedDate = null;
+let currentMonthPrograms = {};
+let programsUnsub = null;
 
 function playWipe(callback) {
   starWipe.classList.add('playing');
@@ -350,6 +358,7 @@ function showHubGrid(direction) {
   hubDetail.classList.add('hidden');
   revealView(hubGrid, direction);
   if (direction === 'back') revealView(hubHeader, 'back');
+  if (programsUnsub) { programsUnsub(); programsUnsub = null; }
 }
 
 function showDetail(panel) {
@@ -384,7 +393,7 @@ function loadPanel(panel) {
     loadListDoc('hub_content/announcements', body, 'No announcements right now.');
   } else if (panel === 'events') {
     title.textContent = 'Events';
-    loadListDoc('hub_content/events', body, 'No upcoming events posted yet.');
+    renderProgramsCalendar(body);
   } else if (panel === 'donate') {
     title.textContent = 'Donate';
     body.innerHTML = `
@@ -469,6 +478,152 @@ function renderPrayerTimes(body, t) {
       <div class="time">${to12Hour(t[name])}</div>
     </div>
   `).join('') + `</div>`;
+}
+
+/* ============================================================
+   EVENTS PANEL — Programs calendar
+   Data source: Firestore `programs` collection, one doc per ISO
+   date (YYYY-MM-DD), e.g. programs/2026-09-17. See CLAUDE.md /
+   plan docs for the full schema (items[], hijriSubtitle, etc).
+   ============================================================ */
+const CALENDAR_MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'];
+const CALENDAR_WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+
+function toIsoDateLocal(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function parseIsoDateLocal(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function renderProgramsCalendar(body) {
+  if (!calendarSelectedDate) calendarSelectedDate = toIsoDateLocal(new Date());
+  body.innerHTML = `
+    <div class="calendar-view">
+      <div class="calendar-nav">
+        <button class="calendar-nav-btn" id="cal-prev">‹</button>
+        <div class="calendar-month-label" id="cal-month-label"></div>
+        <button class="calendar-nav-btn" id="cal-next">›</button>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+      <div class="calendar-day-detail" id="calendar-day-detail"></div>
+    </div>
+  `;
+  document.getElementById('cal-prev').addEventListener('click', () => changeCalendarMonth(-1));
+  document.getElementById('cal-next').addEventListener('click', () => changeCalendarMonth(1));
+  subscribeToProgramsMonth(calendarViewDate);
+}
+
+function changeCalendarMonth(delta) {
+  calendarViewDate = new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + delta, 1);
+  subscribeToProgramsMonth(calendarViewDate);
+}
+
+function subscribeToProgramsMonth(dateObj) {
+  if (programsUnsub) { programsUnsub(); programsUnsub = null; }
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
+  const start = toIsoDateLocal(new Date(year, month, 1));
+  const end = toIsoDateLocal(new Date(year, month + 1, 0));
+
+  const onData = snapshot => {
+    currentMonthPrograms = {};
+    snapshot.docs.forEach(doc => { currentMonthPrograms[doc.id] = doc.data(); });
+    renderCalendarMonthGrid(dateObj);
+    renderCalendarDayDetail();
+  };
+  const onError = () => {
+    currentMonthPrograms = {};
+    renderCalendarMonthGrid(dateObj);
+    renderCalendarDayDetail();
+  };
+
+  programsUnsub = db.collection('programs')
+    .where('date', '>=', start)
+    .where('date', '<=', end)
+    .onSnapshot(onData, onError);
+}
+
+function renderCalendarMonthGrid(dateObj) {
+  const grid = document.getElementById('calendar-grid');
+  const monthLabel = document.getElementById('cal-month-label');
+  if (!grid || !monthLabel) return;
+
+  const year = dateObj.getFullYear();
+  const month = dateObj.getMonth();
+  monthLabel.textContent = `${CALENDAR_MONTH_NAMES[month]} ${year}`;
+
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayIso = toIsoDateLocal(new Date());
+
+  let cellsHtml = CALENDAR_WEEKDAY_LABELS.map(l => `<div class="calendar-weekday">${l}</div>`).join('');
+
+  for (let i = 0; i < 42; i++) {
+    const dayNum = i - firstWeekday + 1;
+    if (dayNum < 1 || dayNum > daysInMonth) {
+      cellsHtml += `<div class="calendar-day calendar-day-empty"></div>`;
+      continue;
+    }
+    const cellIso = toIsoDateLocal(new Date(year, month, dayNum));
+    const hasProgram = !!currentMonthPrograms[cellIso];
+    const classes = ['calendar-day'];
+    if (cellIso === todayIso) classes.push('calendar-day-today');
+    if (cellIso === calendarSelectedDate) classes.push('calendar-day-selected');
+    cellsHtml += `
+      <div class="${classes.join(' ')}" data-date="${cellIso}">
+        <div class="calendar-day-num">${dayNum}</div>
+        ${hasProgram ? '<div class="calendar-day-dot"></div>' : ''}
+      </div>
+    `;
+  }
+
+  grid.innerHTML = cellsHtml;
+  grid.onclick = e => {
+    const cell = e.target.closest('.calendar-day[data-date]');
+    if (!cell) return;
+    calendarSelectedDate = cell.dataset.date;
+    renderCalendarMonthGrid(calendarViewDate);
+    renderCalendarDayDetail();
+  };
+}
+
+function renderCalendarDayDetail() {
+  const detail = document.getElementById('calendar-day-detail');
+  if (!detail) return;
+
+  const data = currentMonthPrograms[calendarSelectedDate];
+  const dateLabel = parseIsoDateLocal(calendarSelectedDate)
+    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  if (!data || !data.items || data.items.length === 0) {
+    detail.innerHTML = `
+      <div class="calendar-selected-date">${dateLabel}</div>
+      <p>No programs scheduled.</p>
+    `;
+    return;
+  }
+
+  detail.innerHTML = `
+    <div class="calendar-selected-date">${dateLabel}</div>
+    ${data.specialOccasion ? `<div class="calendar-occasion">${data.specialOccasion}</div>` : ''}
+    ${data.hijriSubtitle ? `<div class="calendar-hijri-subtitle">${data.hijriSubtitle}</div>` : ''}
+    ${data.items.map(item => `
+      <div class="calendar-program-item">
+        <div class="calendar-program-time">${to12Hour(item.time)}</div>
+        <div class="calendar-program-label">
+          ${item.label || ''}${item.speaker ? ` — ${item.speaker}` : ''}
+          ${item.note ? `<div class="calendar-program-note">${item.note}</div>` : ''}
+        </div>
+      </div>
+    `).join('')}
+  `;
 }
 </script>
 </body>
