@@ -387,7 +387,14 @@ function loadPanel(panel) {
     loadListDoc('hub_content/events', body, 'No upcoming events posted yet.');
   } else if (panel === 'donate') {
     title.textContent = 'Donate';
-    loadListDoc('hub_content/donate', body, 'Donation info coming soon.', true);
+    body.innerHTML = `
+      <div class="donate-content">
+        <div class="donate-qr-card">
+          <img src="assets/Donations QR CODE.png" class="donate-qr" alt="Scan to donate">
+          <div class="donate-qr-caption">Scan to Donate</div>
+        </div>
+      </div>
+    `;
   } else if (panel === 'about') {
     title.textContent = 'About & Contact';
     loadListDoc('hub_content/about', body, 'Contact info coming soon.', true);
