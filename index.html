@@ -232,6 +232,12 @@ function playCurrentAd() {
     video.onerror = advanceAd;
     adWrap.appendChild(video);
   } else {
+    const bg = document.createElement('img');
+    bg.src = ad.url;
+    bg.className = 'ad-media-bg';
+    bg.alt = '';
+    adWrap.appendChild(bg);
+
     const img = document.createElement('img');
     img.src = ad.url;
     adWrap.appendChild(img);
