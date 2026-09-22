@@ -1,0 +1,4 @@
+whatsapp-bot/node_modules/
+whatsapp-bot/data/baileys_auth/
+whatsapp-bot/serviceAccountKey.json
+whatsapp-bot/.env

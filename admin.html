@@ -80,6 +80,10 @@
           <label>Order (lower = first)</label>
           <input type="number" id="upload-order" value="1">
         </div>
+        <div class="admin-field">
+          <label>Auto-remove after this many days (optional — leave blank to keep indefinitely)</label>
+          <input type="number" id="upload-expiry-days" placeholder="e.g. 7" min="1">
+        </div>
         <button class="btn" id="btn-upload">Upload</button>
         <div class="progress-bar" id="progress-wrap" style="display:none;">
           <div class="progress-bar-fill" id="progress-fill"></div>
@@ -173,11 +177,54 @@
         </div>
 
         <div class="hub-content-section">
-          <h3>Events</h3>
-          <div id="events-list"></div>
-          <button class="btn btn-secondary btn-sm" id="btn-add-event">+ Add item</button>
-          <button class="btn btn-sm" id="btn-save-events">Save</button>
-          <span class="dirty-badge hidden" id="events-dirty">● Unsaved changes</span>
+          <h3>Programs Calendar</h3>
+          <p class="field-hint">Paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
+
+          <div class="admin-field">
+            <label>Gemini API key (saved only in this browser — never in the site's code)</label>
+            <div class="program-day-picker-row">
+              <input type="password" id="gemini-api-key-input" placeholder="Paste your free Gemini API key here" autocomplete="off">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-save-gemini-key">Save Key</button>
+            </div>
+            <p class="field-hint">Free, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> — enter once per browser/computer you use this tool from.</p>
+          </div>
+
+          <div class="admin-field">
+            <label>Paste WhatsApp announcement text</label>
+            <textarea id="program-paste-input" rows="10" placeholder="Paste the full weekly programs message here…"></textarea>
+            <button type="button" class="btn btn-sm" id="btn-parse-paste">Parse with AI</button>
+            <span class="field-hint" id="program-parse-status"></span>
+          </div>
+
+          <div id="program-parse-preview"></div>
+
+          <div id="programs-upcoming-list"></div>
+
+          <div class="admin-field">
+            <label>Add / edit a specific day</label>
+            <div class="program-day-picker-row">
+              <input type="date" id="program-day-picker">
+              <button type="button" class="btn btn-secondary btn-sm" id="btn-load-program-day">Load / Create</button>
+            </div>
+          </div>
+
+          <div id="program-day-editor" class="hidden">
+            <div class="admin-field">
+              <label>Special occasion (optional)</label>
+              <input type="text" id="program-occasion" placeholder="e.g. Wiladat Imam Hassan Al Askari (as)">
+            </div>
+            <div class="admin-field">
+              <label>Hijri subtitle (optional)</label>
+              <input type="text" id="program-hijri" placeholder="e.g. 6th Night of Rabi al-Akhir">
+            </div>
+            <div id="program-items-list"></div>
+            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-program-item">+ Add item</button>
+            <div class="program-day-actions">
+              <button type="button" class="btn btn-sm" id="btn-save-program-day">Save Day</button>
+              <button type="button" class="btn btn-sm btn-danger" id="btn-delete-program-day">Delete Day</button>
+              <span class="dirty-badge hidden" id="program-day-dirty">● Unsaved changes</span>
+            </div>
+          </div>
         </div>
 
         <div class="hub-content-section">
@@ -232,6 +279,11 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
+// The Gemini API key is never stored in this file or anywhere in git — it's
+// entered once per browser (see initGeminiKeyField() below) and kept only in
+// that browser's localStorage, so it's never shipped in the site's source.
+const GEMINI_MODEL = 'gemini-3.6-flash';
+
 document.getElementById('masjid-name-label').textContent = KIOSK_CONFIG.masjidName;
 
 const loginCard = document.getElementById('login-card');
@@ -268,6 +320,7 @@ auth.onAuthStateChanged(user => {
     adminContent.classList.remove('hidden');
     loadAdList();
     loadHubContent();
+    loadProgramsAdmin();
     loadKioskSettings();
     // Re-apply the restored tab now that #admin-content is actually visible — if it
     // was mounted earlier while hidden (display:none), the preview iframe would have
@@ -508,6 +561,8 @@ document.getElementById('btn-upload').addEventListener('click', () => {
   const title = document.getElementById('upload-title').value.trim();
   const duration = parseInt(document.getElementById('upload-duration').value, 10) || 8;
   const order = parseInt(document.getElementById('upload-order').value, 10) || 1;
+  const expiryDaysRaw = document.getElementById('upload-expiry-days').value;
+  const expiryDays = expiryDaysRaw ? parseInt(expiryDaysRaw, 10) : null;
 
   if (CLOUDINARY_CONFIG.cloudName.startsWith('PASTE_')) {
     showToast('Cloudinary isn\'t set up yet — check firebase-config.js.', 'error');
@@ -537,15 +592,22 @@ document.getElementById('btn-upload').addEventListener('click', () => {
       return;
     }
     const result = JSON.parse(xhr.responseText);
-    db.collection('ads').add({
+    const adDoc = {
       url: result.secure_url,
       type, title, duration, order,
       active: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    }).then(() => {
+    };
+    if (expiryDays) {
+      adDoc.expiresAt = firebase.firestore.Timestamp.fromDate(
+        new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000)
+      );
+    }
+    db.collection('ads').add(adDoc).then(() => {
       showToast('Uploaded! It will show on the kiosk automatically.', 'success');
       fileInput.value = '';
       document.getElementById('upload-title').value = '';
+      document.getElementById('upload-expiry-days').value = '';
       updateUploadPreview(null);
       progressWrap.style.display = 'none';
       progressFill.style.width = '0%';
@@ -822,13 +884,9 @@ function formatDateForDisplay(isoStr) {
 function loadHubContent() {
   const listLoadingHtml = '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
   document.getElementById('announcements-list').innerHTML = listLoadingHtml;
-  document.getElementById('events-list').innerHTML = listLoadingHtml;
 
   db.collection('hub_content').doc('announcements').get().then(doc => {
     renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : [], 'announcements');
-  });
-  db.collection('hub_content').doc('events').get().then(doc => {
-    renderHubList('events-list', doc.exists ? (doc.data().items || []) : [], 'events');
   });
   db.collection('hub_content').doc('donate').get().then(doc => {
     if (doc.exists) document.getElementById('donate-text').value = doc.data().text || '';
@@ -948,19 +1006,526 @@ function saveHubText(docId, textareaId, sectionName, btn) {
     });
 }
 
+/* ============================================================
+   PROGRAMS CALENDAR EDITOR
+   Manual add/correct UI for the `programs` collection (one doc
+   per ISO date) that also backs the kiosk's Events calendar.
+   Bot-written days are tagged source:"whatsapp-auto"; saving here
+   always stamps source:"manual" and fully overwrites that day.
+   ============================================================ */
+let currentProgramDate = null;
+let programItemCounter = 0;
+let programsUpcomingUnsub = null;
+
+function toIsoDateLocalAdmin(d) {
+  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatProgramDateLabel(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function loadProgramsAdmin() {
+  document.getElementById('programs-upcoming-list').innerHTML =
+    '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
+  const todayIso = toIsoDateLocalAdmin(new Date());
+  if (programsUpcomingUnsub) programsUpcomingUnsub();
+  programsUpcomingUnsub = db.collection('programs')
+    .where('date', '>=', todayIso)
+    .orderBy('date')
+    .limit(30)
+    .onSnapshot(snapshot => {
+      renderUpcomingProgramsList(snapshot.docs);
+    }, () => {
+      document.getElementById('programs-upcoming-list').innerHTML = '<p class="field-hint">Could not load programs.</p>';
+    });
+}
+
+function renderUpcomingProgramsList(docs) {
+  const container = document.getElementById('programs-upcoming-list');
+  if (docs.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">📅</div>
+        <p>No upcoming programs posted yet.</p>
+      </div>`;
+    return;
+  }
+  container.innerHTML = docs.map(doc => {
+    const data = doc.data();
+    const isAuto = data.source === 'whatsapp-auto';
+    const itemCount = (data.items || []).length;
+    const summary = data.specialOccasion || `${itemCount} item${itemCount === 1 ? '' : 's'}`;
+    return `
+      <div class="program-upcoming-row">
+        <div class="program-upcoming-info">
+          <div class="program-upcoming-date">${formatProgramDateLabel(doc.id)}</div>
+          <div class="program-upcoming-summary">${summary}</div>
+        </div>
+        <span class="source-badge ${isAuto ? 'source-auto' : 'source-manual'}">${isAuto ? 'Auto' : 'Manual'}</span>
+        <button type="button" class="btn btn-sm btn-secondary program-upcoming-edit" data-date="${doc.id}">Edit</button>
+      </div>
+    `;
+  }).join('');
+  container.querySelectorAll('.program-upcoming-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('program-day-picker').value = btn.dataset.date;
+      loadProgramDayIntoEditor(btn.dataset.date);
+    });
+  });
+}
+
+function loadProgramDayIntoEditor(dateISO) {
+  if (!dateISO) { showToast('Pick a date first.', 'error'); return; }
+  currentProgramDate = dateISO;
+  document.getElementById('program-day-editor').classList.remove('hidden');
+  document.getElementById('program-items-list').innerHTML =
+    '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
+
+  db.collection('programs').doc(dateISO).get().then(doc => {
+    const data = doc.exists ? doc.data() : {};
+    document.getElementById('program-occasion').value = data.specialOccasion || '';
+    document.getElementById('program-hijri').value = data.hijriSubtitle || '';
+
+    const list = document.getElementById('program-items-list');
+    list.innerHTML = '';
+    const items = data.items || [];
+    if (items.length === 0) {
+      addProgramItemRow(list, {});
+    } else {
+      items.forEach(item => addProgramItemRow(list, item));
+    }
+    clearSectionDirty('program-day');
+  }).catch(err => {
+    document.getElementById('program-items-list').innerHTML =
+      `<p class="field-hint">Could not load this day: ${err.message}</p>`;
+    showToast('Error loading day.', 'error');
+  });
+}
+
+function programReorderHandler() {
+  return (srcId, targetId) => {
+    const container = document.getElementById('program-items-list');
+    const srcRow = container.querySelector(`.program-item-row[data-id="${srcId}"]`);
+    const targetRow = container.querySelector(`.program-item-row[data-id="${targetId}"]`);
+    if (!srcRow || !targetRow) return;
+    container.insertBefore(srcRow, targetRow);
+    markSectionDirty('program-day');
+  };
+}
+
+function addProgramItemRow(container, item) {
+  const rowId = 'progrow-' + (++programItemCounter);
+  const safe = s => (s || '').replace(/"/g, '&quot;');
+
+  const row = document.createElement('div');
+  row.className = 'program-item-row';
+  row.dataset.id = rowId;
+  row.draggable = true;
+  row.innerHTML = `
+    <div class="drag-handle" title="Drag to reorder">⠿</div>
+    <input type="time" class="program-item-time" value="${safe(item.time)}">
+    <input type="text" class="program-item-label" placeholder="Event label" value="${safe(item.label)}">
+    <input type="text" class="program-item-speaker" placeholder="Speaker (optional)" value="${safe(item.speaker)}">
+    <input type="text" class="program-item-note" placeholder="Note (optional)" value="${safe(item.note)}">
+    <button type="button" class="btn btn-sm btn-danger remove-program-item">✕</button>
+  `;
+  row.querySelector('.remove-program-item').addEventListener('click', () => {
+    row.remove();
+    markSectionDirty('program-day');
+  });
+  row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => markSectionDirty('program-day')));
+  container.appendChild(row);
+  makeRowDraggable(row, container, programReorderHandler());
+}
+
+function getProgramItems() {
+  const rows = Array.from(document.querySelectorAll('#program-items-list .program-item-row'))
+    .map(row => ({
+      time: row.querySelector('.program-item-time').value,
+      label: row.querySelector('.program-item-label').value.trim(),
+      speaker: row.querySelector('.program-item-speaker').value.trim(),
+      note: row.querySelector('.program-item-note').value.trim(),
+    }));
+  // A row with only one of time/label filled in is a mistake, not an empty
+  // row to discard — surface it instead of silently saving an incomplete day.
+  const items = rows.filter(item => item.time && item.label);
+  const incompleteCount = rows.filter(item => (item.time || item.label) && !(item.time && item.label)).length;
+  items.sort((a, b) => a.time.localeCompare(b.time));
+  return { items, incompleteCount };
+}
+
+function saveProgramDay() {
+  if (!currentProgramDate) { showToast('Pick a date first.', 'error'); return; }
+  const { items, incompleteCount } = getProgramItems();
+  if (incompleteCount > 0) {
+    showToast(
+      `${incompleteCount} item${incompleteCount === 1 ? '' : 's'} missing a time or label — fill in both or remove the row before saving.`,
+      'error'
+    );
+    return;
+  }
+  const btn = document.getElementById('btn-save-program-day');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  const docRef = db.collection('programs').doc(currentProgramDate);
+  docRef.get()
+    .then(doc => {
+      const createdAt = (doc.exists && doc.data().createdAt) ? doc.data().createdAt : firebase.firestore.FieldValue.serverTimestamp();
+      return docRef.set({
+        date: currentProgramDate,
+        specialOccasion: document.getElementById('program-occasion').value.trim() || null,
+        hijriSubtitle: document.getElementById('program-hijri').value.trim() || null,
+        items,
+        source: 'manual',
+        createdAt,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        rawMessageId: null
+      });
+    })
+    .then(() => {
+      showToast('Program day saved!', 'success');
+      clearSectionDirty('program-day');
+    })
+    .catch(() => showToast('Error saving.', 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+}
+
+/* ============================================================
+   PASTE FROM WHATSAPP — parses the mosque's weekly announcement
+   text with Gemini, previews the resulting days, and lets the
+   admin either publish everything at once or review/edit a
+   specific day first (via the single-day editor above).
+   ============================================================ */
+const PROGRAM_PARSE_SYSTEM_PROMPT = `You are extracting structured data from a WhatsApp message posted by a mosque (Masjid Al Hayy) to its community announcements group.
+
+The mosque's weekly programs announcement looks like this (real example):
+
+Salaamun Alaykum,
+
+Upcoming Programs at Masjid Al Hayy
+
+Thursday, September 17th / 6th Night of Rabi al-Akhir
+- 1:22 PM - Zohrain Salaat
+- 7:42 PM - Maghribain Salaat
+- 8:20 PM - Dua Kumayl - Dr. Syed Askari Hasan
+
+Monday, September 21st / 10th Night of Rabi al-Akhir
+Wiladat Imam Hassan Al Askari (as)
+- 6:07 AM - Fajr Salaat (6:30 AM Jamaat)
+- 8:10 PM - Hadith e Kisa - Ammar Ladak
+
+Each day block starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>",
+is sometimes followed by a line naming a special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"),
+then a bulleted list of "<time> - <event label>" lines. A label may have a trailing "- Speaker Name"
+(whoever is giving a lecture/dua) or a parenthetical note like "(6:30 AM Jamaat)".
+
+Respond with isAnnouncement: false and an empty days array if the message is NOT this kind of programs
+announcement (casual chat, a one-off notice, a reply, a flyer caption, anything else) — do not guess or
+force-fit unrelated text into this schema.
+
+For each day found:
+- monthName: full month name (e.g. "September")
+- dayNumber: the day of month as an integer (e.g. 17)
+- hijriSubtitle: the "Nth Night of Hijri-month" text if present, else an empty string
+- specialOccasion: the special occasion line if present, else an empty string
+- items: each bulleted line, with:
+  - time24: the time converted to 24-hour "HH:MM" (e.g. "1:22 PM" -> "13:22")
+  - label: the event name, with any trailing "- Speaker Name" and any parenthetical removed
+  - speaker: the trailing "- Name" if present, else an empty string
+  - note: the parenthetical content if present (without the parentheses), else an empty string`;
+
+const PROGRAM_PARSE_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    isAnnouncement: { type: 'BOOLEAN' },
+    days: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          monthName: { type: 'STRING' },
+          dayNumber: { type: 'INTEGER' },
+          hijriSubtitle: { type: 'STRING' },
+          specialOccasion: { type: 'STRING' },
+          items: {
+            type: 'ARRAY',
+            items: {
+              type: 'OBJECT',
+              properties: {
+                time24: { type: 'STRING' },
+                label: { type: 'STRING' },
+                speaker: { type: 'STRING' },
+                note: { type: 'STRING' }
+              },
+              required: ['time24', 'label', 'speaker', 'note']
+            }
+          }
+        },
+        required: ['monthName', 'dayNumber', 'hijriSubtitle', 'specialOccasion', 'items']
+      }
+    }
+  },
+  required: ['isAnnouncement', 'days']
+};
+
+const PROGRAM_MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
+  'july', 'august', 'september', 'october', 'november', 'december'];
+
+// Same Dec -> Jan rollover logic as the (unused, kept for reference)
+// whatsapp-bot/src/dateResolution.js — duplicated here since this is a
+// no-build-process, browser-only page with no shared module system.
+function resolveProgramYear(monthName, dayNumber, referenceDate) {
+  const refYear = referenceDate.getFullYear();
+  const refMonthIdx = referenceDate.getMonth();
+  const eventMonthIdx = PROGRAM_MONTH_NAMES.indexOf(String(monthName || '').toLowerCase());
+  let year = refYear;
+  if (eventMonthIdx !== -1 && eventMonthIdx < refMonthIdx - 1) year = refYear + 1;
+  const mm = String((eventMonthIdx === -1 ? refMonthIdx : eventMonthIdx) + 1).padStart(2, '0');
+  const dd = String(dayNumber).padStart(2, '0');
+  return `${year}-${mm}-${dd}`;
+}
+
+function getGeminiApiKey() {
+  try {
+    return localStorage.getItem('geminiApiKey') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+function initGeminiKeyField() {
+  const input = document.getElementById('gemini-api-key-input');
+  const saved = getGeminiApiKey();
+  if (saved) input.value = saved;
+
+  document.getElementById('btn-save-gemini-key').addEventListener('click', () => {
+    const value = input.value.trim();
+    try {
+      if (value) {
+        localStorage.setItem('geminiApiKey', value);
+        showToast('Gemini API key saved in this browser.', 'success');
+      } else {
+        localStorage.removeItem('geminiApiKey');
+        showToast('Gemini API key cleared.', 'success');
+      }
+    } catch (e) {
+      showToast('Could not save key — this browser is blocking local storage.', 'error');
+    }
+  });
+}
+initGeminiKeyField();
+
+async function callGeminiParse(text) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
+    throw new Error('No Gemini API key set — paste one into the field above first.');
+  }
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: PROGRAM_PARSE_SYSTEM_PROMPT }] },
+      contents: [{ parts: [{ text }] }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: PROGRAM_PARSE_SCHEMA
+      }
+    })
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 200)}`);
+  }
+  const data = await res.json();
+  const outText = data.candidates && data.candidates[0] && data.candidates[0].content.parts[0].text;
+  if (!outText) throw new Error('No response from Gemini.');
+  return JSON.parse(outText);
+}
+
+let lastParsedDays = [];
+
+async function parseWhatsAppPaste() {
+  const text = document.getElementById('program-paste-input').value.trim();
+  if (!text) { showToast('Paste some text first.', 'error'); return; }
+
+  const btn = document.getElementById('btn-parse-paste');
+  const status = document.getElementById('program-parse-status');
+  btn.disabled = true;
+  status.textContent = 'Parsing with AI…';
+  document.getElementById('program-parse-preview').innerHTML = '';
+
+  try {
+    const result = await callGeminiParse(text);
+    if (!result.isAnnouncement || !result.days || result.days.length === 0) {
+      status.textContent = "This doesn't look like a programs announcement — nothing to publish.";
+      return;
+    }
+    status.textContent = `Parsed ${result.days.length} day(s). Review below, then publish.`;
+    renderParsePreview(result.days);
+  } catch (err) {
+    status.textContent = '';
+    showToast('Parse failed: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function renderParsePreview(rawDays) {
+  const referenceDate = new Date();
+  lastParsedDays = rawDays.map(day => {
+    const isoDate = resolveProgramYear(day.monthName, day.dayNumber, referenceDate);
+    const items = (day.items || [])
+      .map(item => ({
+        time: item.time24 || '',
+        label: item.label || '',
+        speaker: item.speaker || '',
+        note: item.note || ''
+      }))
+      .filter(item => item.time && item.label)
+      .sort((a, b) => a.time.localeCompare(b.time));
+    return {
+      isoDate,
+      hijriSubtitle: day.hijriSubtitle || null,
+      specialOccasion: day.specialOccasion || null,
+      items
+    };
+  });
+
+  const container = document.getElementById('program-parse-preview');
+  container.innerHTML = `
+    <div class="parse-preview-list">
+      ${lastParsedDays.map((day, i) => `
+        <div class="parse-preview-card">
+          <div class="parse-preview-info">
+            <div class="parse-preview-date">${formatProgramDateLabel(day.isoDate)}</div>
+            ${day.specialOccasion ? `<div class="parse-preview-occasion">${day.specialOccasion}</div>` : ''}
+            <div class="parse-preview-count">${day.items.length} item${day.items.length === 1 ? '' : 's'}</div>
+          </div>
+          <button type="button" class="btn btn-sm btn-secondary parse-preview-edit" data-index="${i}">Review / Edit</button>
+        </div>
+      `).join('')}
+    </div>
+    <div class="program-day-actions">
+      <button type="button" class="btn btn-sm" id="btn-publish-all-parsed">Publish All ${lastParsedDays.length} Day(s)</button>
+    </div>
+  `;
+
+  container.querySelectorAll('.parse-preview-edit').forEach(btn => {
+    btn.addEventListener('click', () => {
+      loadParsedDayIntoEditor(lastParsedDays[parseInt(btn.dataset.index, 10)]);
+    });
+  });
+  document.getElementById('btn-publish-all-parsed').addEventListener('click', publishAllParsedDays);
+}
+
+// Pre-fills the single-day editor above with parsed-but-unsaved data, so
+// the admin can tweak it and use the normal Save Day button (with its
+// existing incomplete-row validation) rather than a separate save path.
+function loadParsedDayIntoEditor(day) {
+  currentProgramDate = day.isoDate;
+  document.getElementById('program-day-picker').value = day.isoDate;
+  document.getElementById('program-day-editor').classList.remove('hidden');
+  document.getElementById('program-occasion').value = day.specialOccasion || '';
+  document.getElementById('program-hijri').value = day.hijriSubtitle || '';
+
+  const list = document.getElementById('program-items-list');
+  list.innerHTML = '';
+  if (day.items.length === 0) {
+    addProgramItemRow(list, {});
+  } else {
+    day.items.forEach(item => addProgramItemRow(list, item));
+  }
+  markSectionDirty('program-day');
+  document.getElementById('program-day-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function publishAllParsedDays() {
+  if (lastParsedDays.length === 0) return;
+  const btn = document.getElementById('btn-publish-all-parsed');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Publishing…';
+
+  const batch = db.batch();
+  const timestamp = firebase.firestore.FieldValue.serverTimestamp();
+  lastParsedDays.forEach(day => {
+    batch.set(db.collection('programs').doc(day.isoDate), {
+      date: day.isoDate,
+      hijriSubtitle: day.hijriSubtitle,
+      specialOccasion: day.specialOccasion,
+      items: day.items,
+      source: 'manual',
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      rawMessageId: null
+    });
+  });
+
+  batch.commit()
+    .then(() => {
+      showToast(`Published ${lastParsedDays.length} day(s)!`, 'success');
+      document.getElementById('program-paste-input').value = '';
+      document.getElementById('program-parse-preview').innerHTML = '';
+      document.getElementById('program-parse-status').textContent = '';
+      lastParsedDays = [];
+    })
+    .catch(err => showToast('Error publishing: ' + err.message, 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+}
+
+document.getElementById('btn-parse-paste').addEventListener('click', parseWhatsAppPaste);
+
+function scheduleProgramDayDelete(dateISO) {
+  document.getElementById('program-day-editor').classList.add('hidden');
+  clearSectionDirty('program-day');
+  currentProgramDate = null;
+  document.getElementById('program-day-picker').value = '';
+
+  const timeoutId = setTimeout(() => {
+    db.collection('programs').doc(dateISO).delete();
+  }, 5000);
+
+  showToast('Day deleted.', 'success', {
+    label: 'Undo',
+    onClick: () => {
+      clearTimeout(timeoutId);
+      document.getElementById('program-day-picker').value = dateISO;
+      loadProgramDayIntoEditor(dateISO);
+    }
+  });
+}
+
+document.getElementById('btn-load-program-day').addEventListener('click', () => {
+  loadProgramDayIntoEditor(document.getElementById('program-day-picker').value);
+});
+document.getElementById('btn-add-program-item').addEventListener('click', () => {
+  addProgramItemRow(document.getElementById('program-items-list'), {});
+  markSectionDirty('program-day');
+});
+document.getElementById('btn-save-program-day').addEventListener('click', saveProgramDay);
+document.getElementById('btn-delete-program-day').addEventListener('click', () => {
+  if (!currentProgramDate) return;
+  scheduleProgramDayDelete(currentProgramDate);
+});
+
 document.getElementById('btn-add-announcement').addEventListener('click', () => {
   addHubItemRow(document.getElementById('announcements-list'), '', '', 'announcements');
   markSectionDirty('announcements');
 });
 document.getElementById('btn-save-announcements').addEventListener('click', () =>
   saveHubList('announcements', 'announcements-list', 'announcements', document.getElementById('btn-save-announcements')));
-
-document.getElementById('btn-add-event').addEventListener('click', () => {
-  addHubItemRow(document.getElementById('events-list'), '', '', 'events');
-  markSectionDirty('events');
-});
-document.getElementById('btn-save-events').addEventListener('click', () =>
-  saveHubList('events', 'events-list', 'events', document.getElementById('btn-save-events')));
 
 document.getElementById('donate-text').addEventListener('input', () => markSectionDirty('donate'));
 document.getElementById('btn-save-donate').addEventListener('click', () =>

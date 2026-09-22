@@ -1,0 +1,23 @@
+{
+  "name": "masjid-kiosk-whatsapp-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Watches the mosque's WhatsApp announcements group and auto-publishes programs/flyers to the kiosk's Firestore.",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "list-groups": "node src/index.js --list-groups"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "@whiskeysockets/baileys": "^6.7.9",
+    "dotenv": "^16.4.5",
+    "firebase-admin": "^12.6.0",
+    "pino": "^9.4.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

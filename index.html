@@ -602,7 +602,11 @@ function renderCalendarDayDetail() {
   const dateLabel = parseIsoDateLocal(calendarSelectedDate)
     .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-  if (!data || !data.items || data.items.length === 0) {
+  const items = (data && data.items) || [];
+  const hasOccasion = !!(data && data.specialOccasion);
+  const hasHijri = !!(data && data.hijriSubtitle);
+
+  if (!data || (items.length === 0 && !hasOccasion && !hasHijri)) {
     detail.innerHTML = `
       <div class="calendar-selected-date">${dateLabel}</div>
       <p>No programs scheduled.</p>
@@ -612,9 +616,9 @@ function renderCalendarDayDetail() {
 
   detail.innerHTML = `
     <div class="calendar-selected-date">${dateLabel}</div>
-    ${data.specialOccasion ? `<div class="calendar-occasion">${data.specialOccasion}</div>` : ''}
-    ${data.hijriSubtitle ? `<div class="calendar-hijri-subtitle">${data.hijriSubtitle}</div>` : ''}
-    ${data.items.map(item => `
+    ${hasOccasion ? `<div class="calendar-occasion">${data.specialOccasion}</div>` : ''}
+    ${hasHijri ? `<div class="calendar-hijri-subtitle">${data.hijriSubtitle}</div>` : ''}
+    ${items.map(item => `
       <div class="calendar-program-item">
         <div class="calendar-program-time">${to12Hour(item.time)}</div>
         <div class="calendar-program-label">
