@@ -129,7 +129,15 @@ async function handleTextMessage(text, postedAtIso, messageId) {
       specialOccasion: day.specialOccasion || null,
       items
     };
-  });
+  })
+  // Safety net alongside the prompt instructions: drop a day entirely if it
+  // has nothing worth showing (no items and no special occasion).
+  .filter(day => day.items.length > 0 || day.specialOccasion);
+
+  if (resolvedDays.length === 0) {
+    console.log(`Message ${messageId} ignored (only routine prayer times, nothing worth a calendar entry).`);
+    return;
+  }
 
   await writeProgramDays(resolvedDays, messageId);
   console.log(`Wrote ${resolvedDays.length} program day(s) from message ${messageId}.`);

@@ -181,15 +181,6 @@
           <p class="field-hint">Paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
 
           <div class="admin-field">
-            <label>Gemini API key (stored securely in the database — never in the site's code)</label>
-            <div class="program-day-picker-row">
-              <input type="password" id="gemini-api-key-input" placeholder="Paste your free Gemini API key here" autocomplete="off">
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-save-gemini-key">Save Key</button>
-            </div>
-            <p class="field-hint">Free, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> — enter it once here and it'll be available on every device you log into this admin page from.</p>
-          </div>
-
-          <div class="admin-field">
             <label>Paste WhatsApp announcement text</label>
             <textarea id="program-paste-input" rows="10" placeholder="Paste the full weekly programs message here…"></textarea>
             <button type="button" class="btn btn-sm" id="btn-parse-paste">Parse with AI</button>
@@ -224,6 +215,10 @@
               <button type="button" class="btn btn-sm btn-danger" id="btn-delete-program-day">Delete Day</button>
               <span class="dirty-badge hidden" id="program-day-dirty">● Unsaved changes</span>
             </div>
+          </div>
+
+          <div class="program-danger-zone">
+            <button type="button" class="btn btn-sm btn-danger" id="btn-delete-all-programs">Delete All Events</button>
           </div>
         </div>
 
@@ -1232,12 +1227,24 @@ Respond with isAnnouncement: false and an empty days array if the message is NOT
 announcement (casual chat, a one-off notice, a reply, a flyer caption, anything else) — do not guess or
 force-fit unrelated text into this schema.
 
+IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
+Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
+(Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has
+a jamaat-time note in parentheses like "(6:30 AM Jamaat)". Only include lines that name something beyond
+the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, or other named activity.
+If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah,
+Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure
+routine-prayer lines, a day has no items left AND no special occasion, omit that day from the days array
+entirely — a day with nothing but routine prayers isn't worth a calendar entry. But if the day still has a
+named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items
+list, since the occasion itself is worth showing.
+
 For each day found:
 - monthName: full month name (e.g. "September")
 - dayNumber: the day of month as an integer (e.g. 17)
 - hijriSubtitle: the "Nth Night of Hijri-month" text if present, else an empty string
 - specialOccasion: the special occasion line if present, else an empty string
-- items: each bulleted line, with:
+- items: each qualifying bulleted line (per the routine-prayer rule above), with:
   - time24: the time converted to 24-hour "HH:MM" (e.g. "1:22 PM" -> "13:22")
   - label: the event name, with any trailing "- Speaker Name" and any parenthetical removed
   - speaker: the trailing "- Name" if present, else an empty string
@@ -1294,11 +1301,10 @@ function resolveProgramYear(monthName, dayNumber, referenceDate) {
   return `${year}-${mm}-${dd}`;
 }
 
-// Stored in Firestore (admin_config/gemini), NOT localStorage — that way it
-// follows any admin to any device they log into this page from. The
-// admin_config collection is locked down to authenticated read+write only
-// (unlike ads/hub_content/settings, which allow public reads), since this
-// one actually holds a secret.
+// Stored in Firestore (admin_config/gemini), set once and no longer exposed
+// via any UI field — read silently on load. To change/rotate the key later,
+// edit the admin_config/gemini document's apiKey field directly in the
+// Firebase Console (Firestore Database -> Data).
 let currentGeminiApiKey = '';
 
 function getGeminiApiKey() {
@@ -1308,32 +1314,20 @@ function getGeminiApiKey() {
 function loadGeminiApiKey() {
   db.collection('admin_config').doc('gemini').get().then(doc => {
     currentGeminiApiKey = (doc.exists && doc.data().apiKey) || '';
-    document.getElementById('gemini-api-key-input').value = currentGeminiApiKey;
   }).catch(() => {
-    // Likely means the admin_config Firestore rule hasn't been added yet —
-    // fail quietly here; Save below will surface a clear error if so.
+    // Likely means the admin_config Firestore rule isn't set up — parsing
+    // will surface a clear "no API key" error if this ends up empty.
   });
 }
 
-document.getElementById('btn-save-gemini-key').addEventListener('click', () => {
-  const value = document.getElementById('gemini-api-key-input').value.trim();
-  const btn = document.getElementById('btn-save-gemini-key');
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  db.collection('admin_config').doc('gemini').set({ apiKey: value })
-    .then(() => {
-      currentGeminiApiKey = value;
-      showToast(value ? 'Saved — available on every device you log into this page from.' : 'Gemini API key cleared.', 'success');
-    })
-    .catch(err => showToast('Error saving key: ' + err.message, 'error'))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    });
-});
+const GEMINI_MAX_ATTEMPTS = 7;
 
-async function callGeminiParse(text) {
+// Gemini's free tier gets deprioritized under high demand and can return
+// several 503s in a row before succeeding (observed a real streak of 3
+// straight 503s taking ~80s total before success during testing) — retry
+// automatically with growing delays instead of surfacing that as a failure
+// the admin has to notice and manually redo.
+async function callGeminiParse(text, attempt = 1) {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
     throw new Error('No Gemini API key set — paste one into the field above first.');
@@ -1351,8 +1345,23 @@ async function callGeminiParse(text) {
       }
     })
   });
+
   if (!res.ok) {
     const errText = await res.text();
+
+    // 503 = server temporarily overloaded, worth retrying. 429 = you've hit
+    // an actual quota/rate limit — retrying won't help, it needs time (or a
+    // plan upgrade) to reset, so fail fast with a clear explanation instead
+    // of burning through retries against a wall that won't move.
+    if (res.status === 503 && attempt < GEMINI_MAX_ATTEMPTS) {
+      const status = document.getElementById('program-parse-status');
+      if (status) status.textContent = `Gemini is busy — retrying (${attempt}/${GEMINI_MAX_ATTEMPTS - 1})… this can take a minute or two during high demand.`;
+      await new Promise(resolve => setTimeout(resolve, Math.min(attempt * 2000, 10000)));
+      return callGeminiParse(text, attempt + 1);
+    }
+    if (res.status === 429) {
+      throw new Error("Gemini's free-tier quota is used up for now — this isn't a bug, it just needs time to reset (usually within a day). Try again later.");
+    }
     throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 200)}`);
   }
   const data = await res.json();
@@ -1379,7 +1388,6 @@ async function parseWhatsAppPaste() {
       status.textContent = "This doesn't look like a programs announcement — nothing to publish.";
       return;
     }
-    status.textContent = `Parsed ${result.days.length} day(s). Review below, then publish.`;
     renderParsePreview(result.days);
   } catch (err) {
     status.textContent = '';
@@ -1408,7 +1416,21 @@ function renderParsePreview(rawDays) {
       specialOccasion: day.specialOccasion || null,
       items
     };
-  });
+  })
+  // Safety net alongside the prompt instructions: drop a day entirely if
+  // it has nothing worth showing (no items and no special occasion) — e.g.
+  // if the AI ever still lets a pure-routine-prayer day through.
+  .filter(day => day.items.length > 0 || day.specialOccasion);
+
+  if (lastParsedDays.length === 0) {
+    document.getElementById('program-parse-status').textContent =
+      'Only routine prayer times found — nothing worth adding to the calendar.';
+    document.getElementById('program-parse-preview').innerHTML = '';
+    return;
+  }
+
+  document.getElementById('program-parse-status').textContent =
+    `Parsed ${lastParsedDays.length} day(s). Review below, then publish.`;
 
   const container = document.getElementById('program-parse-preview');
   container.innerHTML = `
@@ -1528,6 +1550,61 @@ document.getElementById('btn-save-program-day').addEventListener('click', savePr
 document.getElementById('btn-delete-program-day').addEventListener('click', () => {
   if (!currentProgramDate) return;
   scheduleProgramDayDelete(currentProgramDate);
+});
+
+// Two-step "arm, then confirm" pattern instead of a blocking confirm()
+// dialog, matching the rest of this app. First click turns the button into
+// an explicit warning; a second click within 5s actually deletes everything
+// in the `programs` collection (no undo — this is a genuinely destructive,
+// bulk action, unlike the single-day delete above).
+let deleteAllProgramsArmed = false;
+let deleteAllProgramsArmTimeout = null;
+
+function disarmDeleteAllPrograms() {
+  deleteAllProgramsArmed = false;
+  clearTimeout(deleteAllProgramsArmTimeout);
+  const btn = document.getElementById('btn-delete-all-programs');
+  btn.textContent = 'Delete All Events';
+  btn.classList.remove('btn-armed');
+}
+
+document.getElementById('btn-delete-all-programs').addEventListener('click', () => {
+  const btn = document.getElementById('btn-delete-all-programs');
+
+  if (!deleteAllProgramsArmed) {
+    deleteAllProgramsArmed = true;
+    btn.textContent = '⚠️ Click again to permanently delete ALL events';
+    btn.classList.add('btn-armed');
+    deleteAllProgramsArmTimeout = setTimeout(disarmDeleteAllPrograms, 5000);
+    return;
+  }
+
+  disarmDeleteAllPrograms();
+  btn.disabled = true;
+
+  db.collection('programs').get()
+    .then(snapshot => {
+      if (snapshot.empty) {
+        showToast('No events to delete.', 'success');
+        return;
+      }
+      const docs = snapshot.docs;
+      const chunks = [];
+      for (let i = 0; i < docs.length; i += 500) chunks.push(docs.slice(i, i + 500));
+
+      return chunks.reduce((promise, chunk) => promise.then(() => {
+        const batch = db.batch();
+        chunk.forEach(doc => batch.delete(doc.ref));
+        return batch.commit();
+      }), Promise.resolve()).then(() => {
+        showToast(`Deleted ${docs.length} day(s) of events.`, 'success');
+        document.getElementById('program-day-editor').classList.add('hidden');
+        currentProgramDate = null;
+        document.getElementById('program-day-picker').value = '';
+      });
+    })
+    .catch(err => showToast('Error deleting events: ' + err.message, 'error'))
+    .finally(() => { btn.disabled = false; });
 });
 
 document.getElementById('btn-add-announcement').addEventListener('click', () => {

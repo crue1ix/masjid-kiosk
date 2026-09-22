@@ -46,12 +46,24 @@ Respond with isAnnouncement: false and an empty days array if the message is NOT
 announcement (casual chat, a one-off notice, a reply, a flyer caption, anything else) — do not guess or
 force-fit unrelated text into this schema.
 
+IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
+Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
+(Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has
+a jamaat-time note in parentheses like "(6:30 AM Jamaat)". Only include lines that name something beyond
+the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, or other named activity.
+If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah,
+Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure
+routine-prayer lines, a day has no items left AND no special occasion, omit that day from the days array
+entirely — a day with nothing but routine prayers isn't worth a calendar entry. But if the day still has a
+named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items
+list, since the occasion itself is worth showing.
+
 For each day found:
 - monthName: full month name (e.g. "September")
 - dayNumber: the day of month as an integer (e.g. 17)
 - hijriSubtitle: the "Nth Night of Hijri-month" text if present, else an empty string
 - specialOccasion: the special occasion line if present, else an empty string
-- items: each bulleted line, with:
+- items: each qualifying bulleted line (per the routine-prayer rule above), with:
   - time24: the time converted to 24-hour "HH:MM" (e.g. "1:22 PM" -> "13:22")
   - label: the event name, with any trailing "- Speaker Name" and any parenthetical removed
   - speaker: the trailing "- Name" if present, else an empty string
