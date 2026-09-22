@@ -406,7 +406,14 @@ function loadPanel(panel) {
     `;
   } else if (panel === 'about') {
     title.textContent = 'About & Contact';
-    loadListDoc('hub_content/about', body, 'Contact info coming soon.', true);
+    body.innerHTML = `
+      <div class="about-content">
+        <img src="assets/Al-Hayy Logo.png" class="about-logo" alt="Masjid Al-Hayy">
+        <div class="about-mission-heading">Our Mission</div>
+        <div class="about-mission-rule"></div>
+        <p class="about-mission-text">Our mission is to provide the highest quality of religious, educational, and social services to our entire community as well as support and promote a comprehensive Islamic way of life as outlined in the Holy Quran, and the teachings of Prophet Muhammad (Peace Be Upon Him) and his progeny (Ahlulbayt). We actively engage and contribute towards strengthening the bonds between Muslims and Non-Muslims alike by establishing a united community through effective interfaith partnerships, dialogue and fostering respect within Seminole County and the broader Central Florida region.</p>
+      </div>
+    `;
   }
 }
 

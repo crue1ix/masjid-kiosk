@@ -222,24 +222,6 @@
           </div>
         </div>
 
-        <div class="hub-content-section">
-          <h3>Donate Info</h3>
-          <div class="admin-field">
-            <textarea id="donate-text" rows="5" placeholder="Enter donation instructions, links, or payment info…"></textarea>
-          </div>
-          <button class="btn btn-sm" id="btn-save-donate">Save</button>
-          <span class="dirty-badge hidden" id="donate-dirty">● Unsaved changes</span>
-        </div>
-
-        <div class="hub-content-section">
-          <h3>About &amp; Contact</h3>
-          <div class="admin-field">
-            <textarea id="about-text" rows="5" placeholder="Address, phone number, social media, website…"></textarea>
-          </div>
-          <button class="btn btn-sm" id="btn-save-about">Save</button>
-          <span class="dirty-badge hidden" id="about-dirty">● Unsaved changes</span>
-        </div>
-
       </div>
 
     </div>
@@ -884,12 +866,6 @@ function loadHubContent() {
   db.collection('hub_content').doc('announcements').get().then(doc => {
     renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : [], 'announcements');
   });
-  db.collection('hub_content').doc('donate').get().then(doc => {
-    if (doc.exists) document.getElementById('donate-text').value = doc.data().text || '';
-  });
-  db.collection('hub_content').doc('about').get().then(doc => {
-    if (doc.exists) document.getElementById('about-text').value = doc.data().text || '';
-  });
 }
 
 function renderHubList(containerId, items, sectionName) {
@@ -974,23 +950,6 @@ function saveHubList(docId, containerId, sectionName, btn) {
   btn.disabled = true;
   btn.textContent = 'Saving…';
   db.collection('hub_content').doc(docId).set({ items })
-    .then(() => {
-      showToast('Saved!', 'success');
-      clearSectionDirty(sectionName);
-    })
-    .catch(() => showToast('Error saving.', 'error'))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    });
-}
-
-function saveHubText(docId, textareaId, sectionName, btn) {
-  const text = document.getElementById(textareaId).value;
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  db.collection('hub_content').doc(docId).set({ text })
     .then(() => {
       showToast('Saved!', 'success');
       clearSectionDirty(sectionName);
@@ -1200,9 +1159,10 @@ function saveProgramDay() {
    admin either publish everything at once or review/edit a
    specific day first (via the single-day editor above).
    ============================================================ */
-const PROGRAM_PARSE_SYSTEM_PROMPT = `You are extracting structured data from a WhatsApp message posted by a mosque (Masjid Al Hayy) to its community announcements group.
+const PROGRAM_PARSE_SYSTEM_PROMPT = `You are classifying and extracting data from WhatsApp messages posted by a mosque (Masjid Al Hayy) to its community announcements group. This group posts two different kinds of messages that need different handling, plus occasional unrelated chatter — figure out which one this message is.
 
-The mosque's weekly programs announcement looks like this (real example):
+=== TYPE 1: Weekly programs schedule — messageType: "program" ===
+Looks like this (real example):
 
 Salaamun Alaykum,
 
@@ -1219,14 +1179,42 @@ Wiladat Imam Hassan Al Askari (as)
 - 8:10 PM - Hadith e Kisa - Ammar Ladak
 
 Each day block starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>",
-is sometimes followed by a line naming a special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"),
-then a bulleted list of "<time> - <event label>" lines. A label may have a trailing "- Speaker Name"
-(whoever is giving a lecture/dua) or a parenthetical note like "(6:30 AM Jamaat)".
+is sometimes followed by a line naming a special occasion, then a bulleted list of "<time> - <event
+label>" lines. If this is what you're looking at, set messageType: "program" and fill the days array —
+see the item-extraction rules below.
 
-Respond with isAnnouncement: false and an empty days array if the message is NOT this kind of programs
-announcement (casual chat, a one-off notice, a reply, a flyer caption, anything else) — do not guess or
-force-fit unrelated text into this schema.
+=== TYPE 2: General community announcement — messageType: "announcement" ===
+Looks like this (real example):
 
+Salaamun Alaykum,
+
+We wish to inform the community that Sunday, September 13th will be the first day of the Month of Rabi
+al-Akhar 1448 A.H.
+
+This determination is based on the fact there were no verified sightings of the crescent moon on the
+evening of Friday, September 11th.
+
+We ask Allah, the Most High, for success in performing good deeds during this blessed month and to
+hasten the reappearance of Our Master, Imam Mahdi (atfs).
+
+Important Dates of the Month:
+10th Rabi al-Akhar (September 22) – Wiladat of Imam Hassan al-Askari (as)
+
+This kind is prose, not a bulleted schedule — moon-sighting declarations, community notices, condolences,
+general news, etc. If this is what you're looking at, set messageType: "announcement" and fill:
+- announcementMonthName / announcementDayNumber: the single most important date the announcement is
+  centered on (e.g. the new month's start date above). If multiple dates are mentioned, pick the primary
+  one the announcement is actually about. If no specific date is central to the announcement, leave
+  announcementMonthName as an empty string and announcementDayNumber as 0.
+- announcementText: a clear, concise 1-3 sentence summary for a kiosk display — capture the key fact and
+  any critical date, but it does not need to be verbatim.
+
+=== TYPE 3: Neither — messageType: "other" ===
+Casual chat, a reply, a one-off notice that doesn't fit either pattern above, a flyer caption, etc. Set
+messageType: "other" and leave days empty, announcementMonthName as an empty string, announcementDayNumber
+as 0, and announcementText as an empty string. Do not guess or force-fit unrelated text into either schema.
+
+--- Program item extraction rules (only relevant when messageType is "program") ---
 IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
 Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
 (Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has
@@ -1253,7 +1241,7 @@ For each day found:
 const PROGRAM_PARSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
-    isAnnouncement: { type: 'BOOLEAN' },
+    messageType: { type: 'STRING' },
     days: {
       type: 'ARRAY',
       items: {
@@ -1279,9 +1267,12 @@ const PROGRAM_PARSE_SCHEMA = {
         },
         required: ['monthName', 'dayNumber', 'hijriSubtitle', 'specialOccasion', 'items']
       }
-    }
+    },
+    announcementMonthName: { type: 'STRING' },
+    announcementDayNumber: { type: 'INTEGER' },
+    announcementText: { type: 'STRING' }
   },
-  required: ['isAnnouncement', 'days']
+  required: ['messageType', 'days', 'announcementMonthName', 'announcementDayNumber', 'announcementText']
 };
 
 const PROGRAM_MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
@@ -1384,17 +1375,41 @@ async function parseWhatsAppPaste() {
 
   try {
     const result = await callGeminiParse(text);
-    if (!result.isAnnouncement || !result.days || result.days.length === 0) {
-      status.textContent = "This doesn't look like a programs announcement — nothing to publish.";
-      return;
+    if (result.messageType === 'program' && result.days && result.days.length > 0) {
+      renderParsePreview(result.days);
+    } else if (result.messageType === 'announcement') {
+      handleParsedAnnouncement(result);
+    } else {
+      status.textContent = "This doesn't look like a programs schedule or a general announcement — nothing to publish.";
     }
-    renderParsePreview(result.days);
   } catch (err) {
     status.textContent = '';
     showToast('Parse failed: ' + err.message, 'error');
   } finally {
     btn.disabled = false;
   }
+}
+
+// General (non-schedule) announcements don't get their own publish path —
+// they're added as a new row in the existing Announcements editor further
+// up the Content tab, reusing its normal add/edit/Save flow rather than a
+// separate write path with different semantics.
+function handleParsedAnnouncement(result) {
+  let dateLabel = '';
+  if (result.announcementMonthName && result.announcementDayNumber) {
+    const isoDate = resolveProgramYear(result.announcementMonthName, result.announcementDayNumber, new Date());
+    dateLabel = formatDateForDisplay(isoDate);
+  }
+
+  const list = document.getElementById('announcements-list');
+  addHubItemRow(list, dateLabel, result.announcementText || '', 'announcements');
+  markSectionDirty('announcements');
+
+  document.getElementById('program-parse-status').textContent =
+    'Added to the Announcements list below — review and click Save there.';
+  document.getElementById('program-parse-preview').innerHTML = '';
+  document.getElementById('program-paste-input').value = '';
+  list.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function renderParsePreview(rawDays) {
@@ -1613,14 +1628,6 @@ document.getElementById('btn-add-announcement').addEventListener('click', () => 
 });
 document.getElementById('btn-save-announcements').addEventListener('click', () =>
   saveHubList('announcements', 'announcements-list', 'announcements', document.getElementById('btn-save-announcements')));
-
-document.getElementById('donate-text').addEventListener('input', () => markSectionDirty('donate'));
-document.getElementById('btn-save-donate').addEventListener('click', () =>
-  saveHubText('donate', 'donate-text', 'donate', document.getElementById('btn-save-donate')));
-
-document.getElementById('about-text').addEventListener('input', () => markSectionDirty('about'));
-document.getElementById('btn-save-about').addEventListener('click', () =>
-  saveHubText('about', 'about-text', 'about', document.getElementById('btn-save-about')));
 
 /* ============================================================
    KIOSK SETTINGS

@@ -41,6 +41,19 @@ async function writeProgramDays(days, rawMessageId) {
   }
 }
 
+// Appends one item to hub_content/announcements' `items` array — same doc
+// and shape the admin.html Announcements editor reads/writes, so bot-posted
+// announcements show up there too (full-array overwrite, matching how the
+// admin editor's Save button already works).
+async function writeAnnouncement({ dateLabel, text }) {
+  const firestore = getDb();
+  const docRef = firestore.collection('hub_content').doc('announcements');
+  const doc = await docRef.get();
+  const items = doc.exists ? (doc.data().items || []) : [];
+  items.push({ date: dateLabel || '', text });
+  await docRef.set({ items });
+}
+
 async function writeAd({ url, type, title, duration, expiresAt, rawMessageId }) {
   const firestore = getDb();
   await firestore.collection('ads').add({
@@ -57,4 +70,4 @@ async function writeAd({ url, type, title, duration, expiresAt, rawMessageId }) 
   });
 }
 
-module.exports = { writeProgramDays, writeAd, getDb, admin };
+module.exports = { writeProgramDays, writeAnnouncement, writeAd, getDb, admin };

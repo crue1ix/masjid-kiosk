@@ -19,9 +19,10 @@ function getModel() {
   return model;
 }
 
-const SYSTEM_PROMPT = `You are extracting structured data from WhatsApp messages posted by a mosque (Masjid Al Hayy) to its community announcements group.
+const SYSTEM_PROMPT = `You are classifying and extracting data from WhatsApp messages posted by a mosque (Masjid Al Hayy) to its community announcements group. This group posts two different kinds of messages that need different handling, plus occasional unrelated chatter — figure out which one this message is.
 
-The mosque's weekly programs announcement looks like this (real example):
+=== TYPE 1: Weekly programs schedule — messageType: "program" ===
+Looks like this (real example):
 
 Salaamun Alaykum,
 
@@ -38,14 +39,42 @@ Wiladat Imam Hassan Al Askari (as)
 - 8:10 PM - Hadith e Kisa - Ammar Ladak
 
 Each day block starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>",
-is sometimes followed by a line naming a special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"),
-then a bulleted list of "<time> - <event label>" lines. A label may have a trailing "- Speaker Name"
-(whoever is giving a lecture/dua) or a parenthetical note like "(6:30 AM Jamaat)".
+is sometimes followed by a line naming a special occasion, then a bulleted list of "<time> - <event
+label>" lines. If this is what you're looking at, set messageType: "program" and fill the days array —
+see the item-extraction rules below.
 
-Respond with isAnnouncement: false and an empty days array if the message is NOT this kind of programs
-announcement (casual chat, a one-off notice, a reply, a flyer caption, anything else) — do not guess or
-force-fit unrelated text into this schema.
+=== TYPE 2: General community announcement — messageType: "announcement" ===
+Looks like this (real example):
 
+Salaamun Alaykum,
+
+We wish to inform the community that Sunday, September 13th will be the first day of the Month of Rabi
+al-Akhar 1448 A.H.
+
+This determination is based on the fact there were no verified sightings of the crescent moon on the
+evening of Friday, September 11th.
+
+We ask Allah, the Most High, for success in performing good deeds during this blessed month and to
+hasten the reappearance of Our Master, Imam Mahdi (atfs).
+
+Important Dates of the Month:
+10th Rabi al-Akhar (September 22) – Wiladat of Imam Hassan al-Askari (as)
+
+This kind is prose, not a bulleted schedule — moon-sighting declarations, community notices, condolences,
+general news, etc. If this is what you're looking at, set messageType: "announcement" and fill:
+- announcementMonthName / announcementDayNumber: the single most important date the announcement is
+  centered on (e.g. the new month's start date above). If multiple dates are mentioned, pick the primary
+  one the announcement is actually about. If no specific date is central to the announcement, leave
+  announcementMonthName as an empty string and announcementDayNumber as 0.
+- announcementText: a clear, concise 1-3 sentence summary for a kiosk display — capture the key fact and
+  any critical date, but it does not need to be verbatim.
+
+=== TYPE 3: Neither — messageType: "other" ===
+Casual chat, a reply, a one-off notice that doesn't fit either pattern above, a flyer caption, etc. Set
+messageType: "other" and leave days empty, announcementMonthName as an empty string, announcementDayNumber
+as 0, and announcementText as an empty string. Do not guess or force-fit unrelated text into either schema.
+
+--- Program item extraction rules (only relevant when messageType is "program") ---
 IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
 Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
 (Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has
@@ -72,9 +101,9 @@ For each day found:
 const RESPONSE_SCHEMA = {
   type: SchemaType.OBJECT,
   properties: {
-    isAnnouncement: {
-      type: SchemaType.BOOLEAN,
-      description: 'True only if this message is a program/schedule announcement in the known format.'
+    messageType: {
+      type: SchemaType.STRING,
+      description: '"program" (weekly schedule), "announcement" (general community notice), or "other".'
     },
     days: {
       type: SchemaType.ARRAY,
@@ -101,21 +130,24 @@ const RESPONSE_SCHEMA = {
         },
         required: ['monthName', 'dayNumber', 'hijriSubtitle', 'specialOccasion', 'items']
       }
-    }
+    },
+    announcementMonthName: { type: SchemaType.STRING },
+    announcementDayNumber: { type: SchemaType.INTEGER },
+    announcementText: { type: SchemaType.STRING }
   },
-  required: ['isAnnouncement', 'days']
+  required: ['messageType', 'days', 'announcementMonthName', 'announcementDayNumber', 'announcementText']
 };
 
-// Classifies AND extracts in one call: returns { isAnnouncement, days } on
+// Classifies AND extracts in one call: returns the full parsed object on
 // success, or null on a hard failure (network/API error — caller should
-// treat that the same as "skip this message", not as isAnnouncement:false).
+// treat that the same as "skip this message", not as messageType:"other").
 async function parseAnnouncement(text, postedAtIso) {
   try {
     const result = await getModel().generateContent(text);
     const parsed = JSON.parse(result.response.text());
-    if (typeof parsed.isAnnouncement !== 'boolean' || !Array.isArray(parsed.days)) {
+    if (typeof parsed.messageType !== 'string' || !Array.isArray(parsed.days)) {
       console.warn('Gemini response did not match the expected shape; treating as non-announcement.');
-      return { isAnnouncement: false, days: [] };
+      return { messageType: 'other', days: [], announcementMonthName: '', announcementDayNumber: 0, announcementText: '' };
     }
     return parsed;
   } catch (err) {

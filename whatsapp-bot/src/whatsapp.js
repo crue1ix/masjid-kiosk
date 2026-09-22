@@ -12,8 +12,13 @@ const path = require('path');
 const config = require('./config');
 const { parseAnnouncement } = require('./geminiParser');
 const { resolveYear } = require('./dateResolution');
-const { writeProgramDays, writeAd } = require('./firestoreWriter');
+const { writeProgramDays, writeAnnouncement, writeAd } = require('./firestoreWriter');
 const { uploadBuffer } = require('./cloudinaryUpload');
+
+function formatDateLabel(isoDate) {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+}
 
 const AUTH_DIR = path.join(__dirname, '..', 'data', 'baileys_auth');
 const logger = pino({ level: 'warn' });
@@ -106,11 +111,21 @@ async function handleMessage(sock, msg) {
 
 async function handleTextMessage(text, postedAtIso, messageId) {
   const result = await parseAnnouncement(text, postedAtIso);
-  if (!result || !result.isAnnouncement || !result.days || result.days.length === 0) {
-    console.log(`Message ${messageId} ignored (not a program announcement).`);
+  if (!result) {
+    console.log(`Message ${messageId} ignored (parse failure).`);
     return;
   }
 
+  if (result.messageType === 'program' && result.days && result.days.length > 0) {
+    await handleProgramMessage(result, postedAtIso, messageId);
+  } else if (result.messageType === 'announcement') {
+    await handleAnnouncementMessage(result, postedAtIso, messageId);
+  } else {
+    console.log(`Message ${messageId} ignored (not a program schedule or general announcement).`);
+  }
+}
+
+async function handleProgramMessage(result, postedAtIso, messageId) {
   const resolvedDays = result.days.map(day => {
     const isoDate = resolveYear(day.monthName, day.dayNumber, postedAtIso);
     const items = (day.items || [])
@@ -141,6 +156,16 @@ async function handleTextMessage(text, postedAtIso, messageId) {
 
   await writeProgramDays(resolvedDays, messageId);
   console.log(`Wrote ${resolvedDays.length} program day(s) from message ${messageId}.`);
+}
+
+async function handleAnnouncementMessage(result, postedAtIso, messageId) {
+  let dateLabel = '';
+  if (result.announcementMonthName && result.announcementDayNumber) {
+    const isoDate = resolveYear(result.announcementMonthName, result.announcementDayNumber, postedAtIso);
+    dateLabel = formatDateLabel(isoDate);
+  }
+  await writeAnnouncement({ dateLabel, text: result.announcementText || '' });
+  console.log(`Wrote general announcement from message ${messageId}.`);
 }
 
 async function handleMediaMessage(sock, msg, type, messageId) {
