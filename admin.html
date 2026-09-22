@@ -181,12 +181,12 @@
           <p class="field-hint">Paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
 
           <div class="admin-field">
-            <label>Gemini API key (saved only in this browser — never in the site's code)</label>
+            <label>Gemini API key (stored securely in the database — never in the site's code)</label>
             <div class="program-day-picker-row">
               <input type="password" id="gemini-api-key-input" placeholder="Paste your free Gemini API key here" autocomplete="off">
               <button type="button" class="btn btn-secondary btn-sm" id="btn-save-gemini-key">Save Key</button>
             </div>
-            <p class="field-hint">Free, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> — enter once per browser/computer you use this tool from.</p>
+            <p class="field-hint">Free, from <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a> — enter it once here and it'll be available on every device you log into this admin page from.</p>
           </div>
 
           <div class="admin-field">
@@ -321,6 +321,7 @@ auth.onAuthStateChanged(user => {
     loadAdList();
     loadHubContent();
     loadProgramsAdmin();
+    loadGeminiApiKey();
     loadKioskSettings();
     // Re-apply the restored tab now that #admin-content is actually visible — if it
     // was mounted earlier while hidden (display:none), the preview iframe would have
@@ -1293,35 +1294,44 @@ function resolveProgramYear(monthName, dayNumber, referenceDate) {
   return `${year}-${mm}-${dd}`;
 }
 
+// Stored in Firestore (admin_config/gemini), NOT localStorage — that way it
+// follows any admin to any device they log into this page from. The
+// admin_config collection is locked down to authenticated read+write only
+// (unlike ads/hub_content/settings, which allow public reads), since this
+// one actually holds a secret.
+let currentGeminiApiKey = '';
+
 function getGeminiApiKey() {
-  try {
-    return localStorage.getItem('geminiApiKey') || '';
-  } catch (e) {
-    return '';
-  }
+  return currentGeminiApiKey;
 }
 
-function initGeminiKeyField() {
-  const input = document.getElementById('gemini-api-key-input');
-  const saved = getGeminiApiKey();
-  if (saved) input.value = saved;
-
-  document.getElementById('btn-save-gemini-key').addEventListener('click', () => {
-    const value = input.value.trim();
-    try {
-      if (value) {
-        localStorage.setItem('geminiApiKey', value);
-        showToast('Gemini API key saved in this browser.', 'success');
-      } else {
-        localStorage.removeItem('geminiApiKey');
-        showToast('Gemini API key cleared.', 'success');
-      }
-    } catch (e) {
-      showToast('Could not save key — this browser is blocking local storage.', 'error');
-    }
+function loadGeminiApiKey() {
+  db.collection('admin_config').doc('gemini').get().then(doc => {
+    currentGeminiApiKey = (doc.exists && doc.data().apiKey) || '';
+    document.getElementById('gemini-api-key-input').value = currentGeminiApiKey;
+  }).catch(() => {
+    // Likely means the admin_config Firestore rule hasn't been added yet —
+    // fail quietly here; Save below will surface a clear error if so.
   });
 }
-initGeminiKeyField();
+
+document.getElementById('btn-save-gemini-key').addEventListener('click', () => {
+  const value = document.getElementById('gemini-api-key-input').value.trim();
+  const btn = document.getElementById('btn-save-gemini-key');
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+  db.collection('admin_config').doc('gemini').set({ apiKey: value })
+    .then(() => {
+      currentGeminiApiKey = value;
+      showToast(value ? 'Saved — available on every device you log into this page from.' : 'Gemini API key cleared.', 'success');
+    })
+    .catch(err => showToast('Error saving key: ' + err.message, 'error'))
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    });
+});
 
 async function callGeminiParse(text) {
   const apiKey = getGeminiApiKey();
