@@ -178,7 +178,7 @@
 
         <div class="hub-content-section">
           <h3>Programs Calendar</h3>
-          <p class="field-hint">Paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
+          <p class="field-hint">New newsletter emails are published here automatically by the newsletter bot. You can also paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
 
           <div class="admin-field">
             <label>Paste WhatsApp announcement text</label>
@@ -186,6 +186,7 @@
             <button type="button" class="btn btn-sm" id="btn-parse-paste">Parse with AI</button>
             <span class="field-hint" id="program-parse-status"></span>
           </div>
+          <p class="field-hint" id="newsletter-bot-status"></p>
 
           <div id="program-parse-preview"></div>
 
@@ -257,8 +258,8 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // The Gemini API key is never stored in this file or anywhere in git — it's
-// entered once per browser (see initGeminiKeyField() below) and kept only in
-// that browser's localStorage, so it's never shipped in the site's source.
+// read after login from Firestore admin_config/gemini (see loadGeminiApiKey()).
+// The newsletter bot (newsletter-bot/) reads the same document.
 const GEMINI_MODEL = 'gemini-3.6-flash';
 
 document.getElementById('masjid-name-label').textContent = KIOSK_CONFIG.masjidName;
@@ -299,6 +300,7 @@ auth.onAuthStateChanged(user => {
     loadHubContent();
     loadProgramsAdmin();
     loadGeminiApiKey();
+    loadNewsletterBotStatus();
     loadKioskSettings();
     // Re-apply the restored tab now that #admin-content is actually visible — if it
     // was mounted earlier while hidden (display:none), the preview iframe would have
@@ -879,7 +881,7 @@ function renderHubList(containerId, items, sectionName) {
       </div>`;
     return;
   }
-  items.forEach(item => addHubItemRow(container, item.date || '', item.text || '', sectionName));
+  items.forEach(item => addHubItemRow(container, item.date || '', item.text || '', sectionName, item));
 }
 
 let hubRowCounter = 0;
@@ -895,7 +897,9 @@ function hubReorderHandler(containerId, sectionName) {
   };
 }
 
-function addHubItemRow(container, date, text, sectionName) {
+// meta carries the newsletter bot's source/addedAt through an admin
+// save, so its 30-day auto-prune still recognizes items it added.
+function addHubItemRow(container, date, text, sectionName, meta = {}) {
   const empty = container.querySelector('.empty-state');
   if (empty) empty.remove();
 
@@ -907,6 +911,8 @@ function addHubItemRow(container, date, text, sectionName) {
   const row = document.createElement('div');
   row.className = 'hub-item-row';
   row.dataset.id = rowId;
+  if (meta.source) row.dataset.source = meta.source;
+  if (meta.addedAt) row.dataset.addedAt = meta.addedAt;
   row.draggable = true;
   row.innerHTML = `
     <div class="drag-handle" title="Drag to reorder">⠿</div>
@@ -936,10 +942,13 @@ function getHubListItems(containerId) {
     .map(row => {
       const dateInput = row.querySelector('.hub-item-date');
       const date = dateInput.value ? formatDateForDisplay(dateInput.value) : (dateInput.dataset.original || '');
-      return {
+      const item = {
         date,
         text: row.querySelector('.hub-item-text').value.trim(),
       };
+      if (row.dataset.source) item.source = row.dataset.source;
+      if (row.dataset.addedAt) item.addedAt = row.dataset.addedAt;
+      return item;
     })
     .filter(item => item.text);
 }
@@ -1311,54 +1320,128 @@ function loadGeminiApiKey() {
   });
 }
 
-const GEMINI_MAX_ATTEMPTS = 7;
+// Heartbeat written by newsletter-bot/Code.gs on every run.
+function loadNewsletterBotStatus() {
+  const el = document.getElementById('newsletter-bot-status');
+  db.collection('admin_config').doc('newsletter_status').get().then(doc => {
+    if (!doc.exists) {
+      el.textContent = 'Newsletter bot: not set up yet (see newsletter-bot/README.md).';
+      return;
+    }
+    const s = doc.data();
+    const fmt = ts => ts && ts.toDate ? ts.toDate().toLocaleString() : 'never';
+    let text = `Newsletter bot: last checked ${fmt(s.lastRunAt)}`;
+    if (s.lastProcessedSubject) {
+      text += ` · last published "${s.lastProcessedSubject}" on ${fmt(s.lastProcessedAt)}`;
+      if (s.lastSummary) text += ` (${s.lastSummary})`;
+    }
+    if (s.lastError) text += ` · last error: ${s.lastError}`;
+    el.textContent = text;
+  }).catch(() => {
+    // Most likely the admin_config rule only covers the gemini doc.
+  });
+}
+
+const GEMINI_MAX_ATTEMPTS = 4;
+
+// Tried in order when the main model is overloaded (503) or out of
+// free-tier quota (429, counted per model). Picked from the models this
+// API key can actually call, same rules as pickFallbackModels_() in
+// newsletter-bot/Code.gs, so renamed/retired models can't break it.
+const GEMINI_FALLBACK_COUNT = 3;
+const GEMINI_FALLBACK_MAX_ATTEMPTS = 2;
+let geminiFallbackModels = null;
+
+async function getGeminiFallbackModels(apiKey) {
+  if (geminiFallbackModels) return geminiFallbackModels;
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${apiKey}`);
+    if (!res.ok) return [];
+    const names = ((await res.json()).models || [])
+      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
+      .map(m => m.name.replace('models/', ''));
+    const version = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '0');
+    const isLite = n => /lite/.test(n) ? 1 : 0;
+    const isPreview = n => /preview|exp/.test(n) ? 1 : 0;
+    const isNewer = n => version(n) > version(GEMINI_MODEL) ? 1 : 0;
+    geminiFallbackModels = names
+      .filter(n => n !== GEMINI_MODEL && /^gemini-.*flash/.test(n) && !/image|tts|audio|live|embed|thinking/.test(n))
+      .sort((a, b) => isNewer(a) - isNewer(b) || version(b) - version(a) || isPreview(a) - isPreview(b) || isLite(a) - isLite(b) || a.localeCompare(b))
+      .slice(0, GEMINI_FALLBACK_COUNT);
+    return geminiFallbackModels;
+  } catch (err) {
+    return [];
+  }
+}
 
 // Gemini's free tier gets deprioritized under high demand and can return
-// several 503s in a row before succeeding (observed a real streak of 3
-// straight 503s taking ~80s total before success during testing) — retry
-// automatically with growing delays instead of surfacing that as a failure
+// several 503s in a row (observed a real streak of 3 straight 503s taking
+// ~80s total during testing) — retry the main model with growing delays,
+// then fall back to lighter models instead of surfacing that as a failure
 // the admin has to notice and manually redo.
-async function callGeminiParse(text, attempt = 1) {
+async function callGeminiParse(text) {
   const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    throw new Error('No Gemini API key set — paste one into the field above first.');
+    throw new Error('No Gemini API key found — check the admin_config/gemini document in Firestore.');
   }
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: PROGRAM_PARSE_SYSTEM_PROMPT }] },
-      contents: [{ parts: [{ text }] }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-        responseSchema: PROGRAM_PARSE_SCHEMA
-      }
-    })
+  const status = document.getElementById('program-parse-status');
+  const setStatus = msg => { if (status) status.textContent = msg; };
+  const body = JSON.stringify({
+    system_instruction: { parts: [{ text: PROGRAM_PARSE_SYSTEM_PROMPT }] },
+    contents: [{ parts: [{ text }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: PROGRAM_PARSE_SCHEMA
+    }
   });
 
-  if (!res.ok) {
-    const errText = await res.text();
+  let models = [GEMINI_MODEL];
+  let lastProblem = '';
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    const maxAttempts = i === 0 ? GEMINI_MAX_ATTEMPTS : GEMINI_FALLBACK_MAX_ATTEMPTS;
+    if (i > 0) setStatus(`Main AI model is busy — trying a lighter one (${model})…`);
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
-    // 503 = server temporarily overloaded, worth retrying. 429 = you've hit
-    // an actual quota/rate limit — retrying won't help, it needs time (or a
-    // plan upgrade) to reset, so fail fast with a clear explanation instead
-    // of burning through retries against a wall that won't move.
-    if (res.status === 503 && attempt < GEMINI_MAX_ATTEMPTS) {
-      const status = document.getElementById('program-parse-status');
-      if (status) status.textContent = `Gemini is busy — retrying (${attempt}/${GEMINI_MAX_ATTEMPTS - 1})… this can take a minute or two during high demand.`;
-      await new Promise(resolve => setTimeout(resolve, Math.min(attempt * 2000, 10000)));
-      return callGeminiParse(text, attempt + 1);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const outText = data.candidates && data.candidates[0] && data.candidates[0].content.parts[0].text;
+        if (!outText) throw new Error('No response from Gemini.');
+        return JSON.parse(outText);
+      }
+      // 503 = temporarily overloaded, worth retrying. 429 = this model's
+      // quota is used up and retrying won't help, but the free-tier quota
+      // is per model, so a fallback model may still have some left.
+      if (res.status === 503) {
+        lastProblem = 'busy';
+        if (attempt < maxAttempts) {
+          setStatus(`Gemini is busy — retrying (${attempt}/${maxAttempts - 1})… this can take a minute during high demand.`);
+          await new Promise(resolve => setTimeout(resolve, Math.min(attempt * 2000, 10000)));
+          continue;
+        }
+        break;
+      }
+      if (res.status === 429) { lastProblem = 'quota'; break; }
+      if (res.status === 404) break;
+      const errText = await res.text();
+      throw new Error(`Gemini API error (${model}, ${res.status}): ${errText.slice(0, 200)}`);
     }
-    if (res.status === 429) {
-      throw new Error("Gemini's free-tier quota is used up for now — this isn't a bug, it just needs time to reset (usually within a day). Try again later.");
-    }
-    throw new Error(`Gemini API error (${res.status}): ${errText.slice(0, 200)}`);
+    // Only looked up once the main model has failed, so the normal path
+    // costs no extra request.
+    if (i === 0) models = models.concat(await getGeminiFallbackModels(apiKey));
   }
-  const data = await res.json();
-  const outText = data.candidates && data.candidates[0] && data.candidates[0].content.parts[0].text;
-  if (!outText) throw new Error('No response from Gemini.');
-  return JSON.parse(outText);
+
+  if (lastProblem === 'quota') {
+    throw new Error("Gemini's free-tier quota is used up for now — this isn't a bug, it just needs time to reset (usually within a day). Try again later.");
+  }
+  throw new Error("Every Gemini model is busy right now — this is on Google's side. Try again in a few minutes.");
 }
 
 let lastParsedDays = [];

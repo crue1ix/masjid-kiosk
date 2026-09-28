@@ -192,6 +192,10 @@ handles the main lock, and the site closes a few extra gaps on top of it.
 - **No touches on the hub for `hubIdleTimeoutSeconds`:** it automatically
   returns to the ad reel — or someone can tap "Back to ads" manually.
 
+## Automatic programs & announcements from the newsletter
+
+The `newsletter-bot/` folder holds a free Google Apps Script. It reads the masjid's email newsletter from a dedicated Gmail inbox and publishes the programs and announcements to the kiosk automatically. See [`newsletter-bot/README.md`](newsletter-bot/README.md) for the one-time setup.
+
 ## Managing announcements / events / donate / about text
 
 These currently pull from Firestore documents so you can update them
