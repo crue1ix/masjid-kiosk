@@ -6,7 +6,8 @@
    sends the text + any flyer images/PDFs to Gemini, and publishes the
    resulting program days and announcements straight to Firestore —
    the same documents admin.html's "Parse with AI" tool writes, so
-   index.html shows them with no changes.
+   index.html shows them with no changes. Images Gemini identifies as
+   posters are uploaded to Cloudinary and added to the ad reel.
 
    Setup lives in README.md next to this file. All secrets are in
    Script Properties (Project Settings -> Script Properties), never here:
@@ -57,6 +58,15 @@ const GEMINI_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/heic
 // Newsletter-sourced announcements older than this are pruned on each
 // write so the kiosk list doesn't grow forever. Manual ones are kept.
 const ANNOUNCEMENT_MAX_AGE_DAYS = 30;
+
+// Flyers Gemini picks out as posters are added to the ad reel. Same
+// unsigned upload preset admin.html uses (public values, see
+// firebase-config.js). Each poster starts with this expiry; admins can
+// change it per item from the Media list's Edit form.
+const CLOUDINARY_CLOUD_NAME = 'u5syafcz';
+const CLOUDINARY_UPLOAD_PRESET = 'adzamszc';
+const POSTER_EXPIRY_DAYS = 7;
+const POSTER_DURATION_SECONDS = 8;
 
 const LABEL_PROCESSED = 'kiosk-processed';
 const LABEL_FAILED = 'kiosk-failed';
@@ -141,6 +151,12 @@ function processNewsletters() {
 
   saveProgress_(props, processed, failures);
 
+  try {
+    deleteExpiredPosters_(token);
+  } catch (err) {
+    Logger.log(`Expired poster cleanup failed: ${err.message}`);
+  }
+
   // Heartbeat for admin.html — written every run so a stalled bot is visible.
   const status = { lastRunAt: new Date(), lastError: lastError || '' };
   if (lastSubject) {
@@ -174,7 +190,12 @@ function testParseOnly(messageId) {
   const apiKey = getGeminiApiKey_(getFirestoreToken_());
   const parsed = parseNewsletterMessage_(message, apiKey);
   Logger.log(`Subject: ${message.getSubject()} (id ${message.getId()})`);
-  Logger.log(JSON.stringify(parsed, null, 2));
+  Logger.log(JSON.stringify({ programDays: parsed.programDays, announcements: parsed.announcements }, null, 2));
+  if (parsed.textOnly) Logger.log('Text-only parse — no posters picked.');
+  Logger.log(`Posters (${parsed.posters.length}):`);
+  parsed.posters.forEach(p => Logger.log(
+    `  [Image ${p.imageIndex}] "${p.title}" — ${p.mimeType}, ${Math.round(p.bytes.length / 1024)} KB${p.sourceUrl ? ', ' + p.sourceUrl : ' (attachment)'}`
+  ));
 }
 
 // Setup helper: shows what the script actually reads from Script
@@ -270,15 +291,18 @@ function htmlToText_(html) {
 
 // Collects flyer images (attached, inline, and hosted via <img src> —
 // Mailchimp-style newsletters host every image on a CDN) and PDFs as
-// Gemini inline_data parts.
+// Gemini inline_data parts. Each image is preceded by an "[Image N]"
+// label so Gemini can say which ones are posters; images[N] keeps the
+// bytes to upload them.
 function getMediaParts_(message) {
   const parts = [];
+  const images = [];
   let totalBytes = 0;
   let imageCount = 0;
 
   const seenDigests = new Set();
 
-  const addBlob = (bytes, mimeType) => {
+  const addBlob = (bytes, mimeType, sourceUrl) => {
     mimeType = (mimeType || '').split(';')[0].trim().toLowerCase();
     if (mimeType === 'image/jpg') mimeType = 'image/jpeg';
     const isPdf = mimeType === 'application/pdf';
@@ -291,19 +315,29 @@ function getMediaParts_(message) {
     if (seenDigests.has(digest)) return;
     seenDigests.add(digest);
     totalBytes += bytes.length;
-    if (isImage) imageCount++;
+    if (isImage) {
+      parts.push({ text: `[Image ${images.length}]` });
+      images.push({ bytes, mimeType, digest, sourceUrl: sourceUrl || '' });
+      imageCount++;
+    }
     parts.push({ inline_data: { mime_type: mimeType, data: Utilities.base64Encode(bytes) } });
   };
 
   message.getAttachments({ includeInlineImages: true, includeAttachments: true }).forEach(att => {
-    addBlob(att.getBytes(), att.getContentType());
+    addBlob(att.getBytes(), att.getContentType(), '');
   });
 
   const html = message.getBody() || '';
+  const scheduleEnd = findScheduleEnd_(html);
   const seen = new Set();
   const imgRe = /<img[^>]+src=["']([^"']+)["']/gi;
   let match;
+  let skippedAboveSchedule = 0;
   while ((match = imgRe.exec(html)) && imageCount < MAX_IMAGES_PER_EMAIL) {
+    if (match.index < scheduleEnd) {
+      skippedAboveSchedule++;
+      continue;
+    }
     const url = match[1].replace(/&amp;/g, '&');
     if (!/^https?:\/\//i.test(url) || seen.has(url)) continue;
     seen.add(url);
@@ -311,12 +345,31 @@ function getMediaParts_(message) {
       const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
       if (res.getResponseCode() !== 200) continue;
       const blob = res.getBlob();
-      addBlob(blob.getBytes(), blob.getContentType() || res.getHeaders()['Content-Type']);
+      addBlob(blob.getBytes(), blob.getContentType() || res.getHeaders()['Content-Type'], url);
     } catch (err) {
       // An unreachable image shouldn't sink the whole newsletter.
     }
   }
-  return parts;
+  if (skippedAboveSchedule) Logger.log(`Skipped ${skippedAboveSchedule} image(s) above the end of the schedule.`);
+  return { parts, images };
+}
+
+// The newsletter always puts its posters after the weekly schedule, so
+// images above it (masthead, banners, "Saying of the Week") are skipped
+// and don't use up MAX_IMAGES_PER_EMAIL. Returns the HTML offset of the
+// last day header ("Wednesday, September 16th / 5th Night of ..."), or
+// 0 to keep every image when there is no schedule in that format.
+// Tags are blanked out (not removed) so offsets still line up with html.
+function findScheduleEnd_(html) {
+  const text = html.replace(/<[^>]*>/g, tag => ' '.repeat(tag.length));
+  const sp = '(?:\\s|&nbsp;|&#160;)+';
+  const dayHeader = new RegExp(
+    `\\b(?:mon|tues|wednes|thurs|fri|satur|sun)day,?${sp}(?:${MONTH_NAMES.join('|')})${sp}\\d{1,2}` +
+    `[\\s\\S]{0,120}?Night${sp}of\\b`, 'gi');
+  let last = 0;
+  let match;
+  while ((match = dayHeader.exec(text))) last = match.index;
+  return last;
 }
 
 /* ============================================================
@@ -369,6 +422,16 @@ For each announcement:
 - monthName / dayNumber: the single most important date the announcement is centered on. If none is central, monthName is an empty string and dayNumber is 0.
 - text: a clear, concise 1-3 sentence summary for a kiosk display — capture the key fact and any critical date; it does not need to be verbatim.
 
+=== PART 3: Posters -> posters ===
+Each image is preceded by a label like "[Image 0]". Some images are posters that will be shown full-screen on the masjid's digital display; most others are not. A poster is a self-contained, designed graphic promoting an event, program, class, majlis, fundraiser, occasion or campaign, with readable text, that makes sense on its own (a program schedule flyer counts).
+NOT posters: photos of people, places or past events; logos; newsletter header/footer banners or mastheads; email signatures; social media icons; decorative dividers; images that are only a QR code; and donation bank-detail graphics.
+
+For each poster:
+- imageIndex: the N from its "[Image N]" label
+- title: a short title for it (e.g. "Majlis - Friday Oct 3"), under 60 characters
+
+Only include an image if you are confident it is a poster; when in doubt, leave it out.
+
 Return empty arrays for anything not present. Do not guess or invent content that isn't in the newsletter.`;
 
 const NEWSLETTER_PARSE_SCHEMA = {
@@ -411,17 +474,30 @@ const NEWSLETTER_PARSE_SCHEMA = {
         },
         required: ['monthName', 'dayNumber', 'text']
       }
+    },
+    posters: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          imageIndex: { type: 'INTEGER' },
+          title: { type: 'STRING' }
+        },
+        required: ['imageIndex', 'title']
+      }
     }
   },
-  required: ['programDays', 'announcements']
+  required: ['programDays', 'announcements', 'posters']
 };
 
 function parseNewsletterMessage_(message, apiKey) {
   const text = `Subject: ${message.getSubject()}\nSent: ${message.getDate().toDateString()}\n\n${getMessageText_(message)}`;
   Logger.log(`Reading "${message.getSubject()}" — collecting text and images…`);
-  const mediaParts = getMediaParts_(message);
-  const mediaBytes = mediaParts.reduce((sum, p) => sum + p.inline_data.data.length * 3 / 4, 0);
-  Logger.log(`Sending to Gemini: ${text.length} chars of text + ${mediaParts.length} image/PDF file(s), ${(mediaBytes / 1048576).toFixed(1)} MB…`);
+  const media = getMediaParts_(message);
+  const mediaParts = media.parts;
+  const fileParts = mediaParts.filter(p => p.inline_data);
+  const mediaBytes = fileParts.reduce((sum, p) => sum + p.inline_data.data.length * 3 / 4, 0);
+  Logger.log(`Sending to Gemini: ${text.length} chars of text + ${fileParts.length} image/PDF file(s), ${(mediaBytes / 1048576).toFixed(1)} MB…`);
 
   let raw;
   try {
@@ -439,7 +515,21 @@ function parseNewsletterMessage_(message, apiKey) {
   }
   const parsed = normalizeParsed_(raw, message.getDate());
   parsed.textOnly = !!raw.textOnly;
+  parsed.posters = parsed.textOnly ? [] : matchPosters_(raw.posters, media.images);
   return parsed;
+}
+
+// Maps Gemini's poster picks back to the image bytes that were sent.
+function matchPosters_(rawPosters, images) {
+  const used = new Set();
+  const posters = [];
+  (rawPosters || []).forEach(p => {
+    const idx = p.imageIndex;
+    if (!Number.isInteger(idx) || idx < 0 || idx >= images.length || used.has(idx)) return;
+    used.add(idx);
+    posters.push(Object.assign({ imageIndex: idx, title: (p.title || '').trim() || 'Newsletter poster' }, images[idx]));
+  });
+  return posters;
 }
 
 // Main model first, with the same 503 backoff as callGeminiParse() in
@@ -709,8 +799,95 @@ function publishParsed_(parsed, message, token) {
     patchDoc_(token, path, { items }, ['items']);
   }
 
-  return `${parsed.programDays.length} program day(s), ${added} new announcement(s)` +
+  const posterResult = publishPosters_(parsed.posters, message, token);
+
+  return `${parsed.programDays.length} program day(s), ${added} new announcement(s), ` +
+    `${posterResult.added} new poster(s)` +
+    (posterResult.renewed ? `, ${posterResult.renewed} renewed` : '') +
+    (posterResult.failed ? `, ${posterResult.failed} poster upload(s) failed` : '') +
     (parsed.textOnly ? ' — text only, flyer images were skipped' : '');
+}
+
+// Adds each poster to the ad reel, expiring after POSTER_EXPIRY_DAYS.
+// Weekly newsletters often repeat a flyer, so one already added by the
+// bot just gets its expiry pushed out instead of a second copy — never
+// pulled in, and never added back if an admin cleared it in the Edit form.
+function publishPosters_(posters, message, token) {
+  const result = { added: 0, renewed: 0, failed: 0 };
+  if (!posters.length) return result;
+
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + POSTER_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+  const existingByHash = {};
+  listCollection_(token, 'ads').forEach(ad => {
+    if (ad.source === 'newsletter-auto' && ad.imageHash) existingByHash[ad.imageHash] = ad;
+  });
+
+  posters.forEach(poster => {
+    try {
+      const existing = existingByHash[poster.digest];
+      if (existing) {
+        if (existing.expiresAt instanceof Date && existing.expiresAt < expiresAt) {
+          patchDoc_(token, `ads/${existing.id}`, { expiresAt }, ['expiresAt']);
+          existing.expiresAt = expiresAt;
+          result.renewed++;
+        }
+        return;
+      }
+      const url = uploadToCloudinary_(poster.bytes, poster.mimeType);
+      const doc = {
+        url,
+        type: 'image',
+        title: poster.title,
+        duration: POSTER_DURATION_SECONDS,
+        order: 999,
+        active: true,
+        expiresAt,
+        source: 'newsletter-auto',
+        imageHash: poster.digest,
+        rawMessageId: message.getId(),
+        createdAt: now
+      };
+      doc.id = createDoc_(token, 'ads', doc);
+      existingByHash[poster.digest] = doc;
+      result.added++;
+    } catch (err) {
+      result.failed++;
+      Logger.log(`Poster "${poster.title}" failed: ${err.message}`);
+    }
+  });
+  return result;
+}
+
+
+// The kiosk already hides expired ads; this removes the bot's own expired
+// posters so the admin Media list doesn't fill up. Manual uploads are left
+// alone. (The Cloudinary file stays — an unsigned preset can't delete.)
+function deleteExpiredPosters_(token) {
+  const now = Date.now();
+  let deleted = 0;
+  listCollection_(token, 'ads').forEach(ad => {
+    if (ad.source !== 'newsletter-auto' || !(ad.expiresAt instanceof Date)) return;
+    if (ad.expiresAt.getTime() > now) return;
+    deleteDoc_(token, `ads/${ad.id}`);
+    deleted++;
+  });
+  if (deleted) Logger.log(`Removed ${deleted} expired newsletter poster(s).`);
+}
+
+function uploadToCloudinary_(bytes, mimeType) {
+  const res = UrlFetchApp.fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    method: 'post',
+    payload: {
+      file: `data:${mimeType};base64,${Utilities.base64Encode(bytes)}`,
+      upload_preset: CLOUDINARY_UPLOAD_PRESET
+    },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) {
+    throw new Error(`Cloudinary upload failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 200)}`);
+  }
+  return JSON.parse(res.getContentText()).secure_url;
 }
 
 /* ============================================================
@@ -793,6 +970,57 @@ function patchDoc_(token, path, data, updateMask) {
   if (res.getResponseCode() !== 200) {
     throw new Error(`Firestore write ${path} failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 200)}`);
   }
+}
+
+// Creates a document with an auto-generated ID and returns that ID.
+function createDoc_(token, collectionPath, data) {
+  const res = UrlFetchApp.fetch(firestoreUrl_(collectionPath), {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { Authorization: `Bearer ${token}` },
+    payload: JSON.stringify({ fields: toFirestoreFields_(data) }),
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200) {
+    throw new Error(`Firestore create in ${collectionPath} failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 200)}`);
+  }
+  return JSON.parse(res.getContentText()).name.split('/').pop();
+}
+
+function deleteDoc_(token, path) {
+  const res = UrlFetchApp.fetch(firestoreUrl_(path), {
+    method: 'delete',
+    headers: { Authorization: `Bearer ${token}` },
+    muteHttpExceptions: true
+  });
+  if (res.getResponseCode() !== 200 && res.getResponseCode() !== 404) {
+    throw new Error(`Firestore delete ${path} failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 200)}`);
+  }
+}
+
+// Every document in a collection as plain objects, each with its `id`.
+function listCollection_(token, collectionPath) {
+  const docs = [];
+  let pageToken = '';
+  do {
+    let url = `${firestoreUrl_(collectionPath)}?pageSize=300`;
+    if (pageToken) url += `&pageToken=${encodeURIComponent(pageToken)}`;
+    const res = UrlFetchApp.fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) {
+      throw new Error(`Firestore list ${collectionPath} failed (${res.getResponseCode()}): ${res.getContentText().slice(0, 200)}`);
+    }
+    const data = JSON.parse(res.getContentText());
+    (data.documents || []).forEach(d => {
+      const obj = fromFirestoreFields_(d.fields || {});
+      obj.id = d.name.split('/').pop();
+      docs.push(obj);
+    });
+    pageToken = data.nextPageToken || '';
+  } while (pageToken);
+  return docs;
 }
 
 function toFirestoreValue_(value) {

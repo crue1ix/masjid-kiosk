@@ -40,6 +40,10 @@ Single file containing all customizable settings:
 ```
 /ads (collection)
   url, type ("image"|"video"), title, duration, order, active, createdAt
+  expiresAt (optional), source ("newsletter-auto" for bot posters), imageHash, rawMessageId
+
+/settings/kiosk
+  locked, specialReels, hubIdleTimeoutSeconds
 
 /hub_content (collection)
   /announcements  { items: [{date, text}] }

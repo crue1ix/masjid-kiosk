@@ -8,6 +8,13 @@ This bot puts newsletter content on the kiosk without anyone typing it in. A Goo
   - Duplicates (same text) are skipped.
   - Announcements the bot added are removed automatically after 30 days. Ones you add by hand are never touched.
 
+- **Posters** go into the ad reel (`ads`).
+  - Gemini looks at every image in the email and picks out the posters: designed flyers for an event, program, class, fundraiser or occasion. It skips logos, header banners, photos, social icons, QR-only images and bank-detail graphics.
+  - Each poster is uploaded to Cloudinary and goes live in the reel right away, tagged **📧 Newsletter** in the admin Media list.
+  - Each poster is set to expire **7 days** after it's added (`POSTER_EXPIRY_DAYS` in `Code.gs`). To change one poster's expiry, click **Edit** on it in the Media list and pick a new "Expires on" date, or clear the date to keep it indefinitely.
+  - If a later newsletter carries the same flyer again (same file), the existing ad's expiry is pushed out to 7 days from then instead of adding a copy. The bot never shortens an expiry you set, and never adds one back to a poster you cleared.
+  - Expired bot posters are deleted from `ads` on the next run. Manual uploads are never touched. The file stays in Cloudinary, because the unsigned preset can't delete it.
+
 Everything goes live right away. If the AI gets something wrong, edit or delete it in `admin.html` as usual. The Programs Calendar section of `admin.html` shows a status line with the bot's last check, the last newsletter it published and its last error.
 
 It costs nothing to run: Apps Script, Gmail and the Gemini free tier are all free, and there is no server to host.
@@ -73,6 +80,12 @@ The bot uses the same Gemini key the admin page does: `admin_config/gemini` → 
   - To choose them yourself instead, add a Script Property `GEMINI_FALLBACK_MODELS` with a comma-separated list of names from that output.
 - **Logs:** open the Apps Script editor → **Executions** to see each run and its output.
 - **Changing the extraction:** the prompt is `NEWSLETTER_PARSE_PROMPT` in `Code.gs`. After editing it in the repo, paste the updated file into the Apps Script editor; it does not sync automatically.
+- **Poster limits:**
+  - The newsletter puts its posters after the weekly schedule, so images above the last day header (`<Weekday>, <Month> <Day> / <Nth> Night of …`) are skipped. If no day header in that format is found, every image is considered.
+  - Only the first 6 images (after the schedule) per email are looked at, and only ones between 15 KB and 3 MB (`MAX_IMAGES_PER_EMAIL`, `MAX_IMAGE_BYTES` in `Code.gs`). A poster over 3 MB, or one that comes after 6 other images, is missed.
+  - If Gemini is too busy and the bot falls back to text only, that email's posters are skipped.
+  - If the newsletter re-encodes the same flyer, it can appear twice. Delete the extra one in admin.
+  - `testParseOnly` logs which images it would add as posters, without uploading anything.
 - **A newsletter that changes an event's time** adds the new time next to the old one, because items are merged, not replaced. Delete the stale item in admin.
 
 ## Relationship to `whatsapp-bot/`

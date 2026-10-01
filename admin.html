@@ -667,7 +667,7 @@ function renderAdList(docs) {
       <button type="button" class="ad-list-thumb-btn" data-id="${id}">${thumbInner}</button>
       <div class="ad-list-info">
         <div class="fname">${ad.title || '(untitled)'}</div>
-        <div class="meta">${ad.type} · order ${ad.order}${ad.type === 'image' ? ' · ' + ad.duration + 's' : ''}</div>
+        <div class="meta">${ad.type} · order ${ad.order}${ad.type === 'image' ? ' · ' + ad.duration + 's' : ''}${ad.source === 'newsletter-auto' ? ' · 📧 Newsletter' : ''}${ad.expiresAt ? ' · expires ' + ad.expiresAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}</div>
       </div>
       <div class="ad-list-actions">
         <button class="btn btn-sm btn-secondary btn-edit" data-id="${id}">Edit</button>
@@ -803,6 +803,10 @@ function showEditForm(id) {
         <label>Order</label>
         <input type="number" class="edit-order" value="${ad.order || 1}">
       </div>
+      <div class="admin-field">
+        <label>Expires on (leave blank to keep indefinitely)</label>
+        <input type="date" class="edit-expiry" value="${ad.expiresAt ? toDateInputValue(ad.expiresAt.toDate()) : ''}">
+      </div>
       <div class="inline-edit-actions">
         <button class="btn btn-sm save-edit">Save</button>
         <button class="btn btn-sm btn-secondary cancel-edit">Cancel</button>
@@ -815,10 +819,25 @@ function showEditForm(id) {
       order: parseInt(item.querySelector('.edit-order').value, 10) || 1,
     };
     if (ad.type === 'image') updates.duration = parseInt(item.querySelector('.edit-duration').value, 10) || 8;
+    // Only written when changed, so saving a title edit keeps the exact
+    // expiry time the newsletter bot set.
+    const expiryValue = item.querySelector('.edit-expiry').value;
+    const oldExpiryValue = ad.expiresAt ? toDateInputValue(ad.expiresAt.toDate()) : '';
+    if (expiryValue !== oldExpiryValue) {
+      const [y, m, d] = expiryValue.split('-').map(Number);
+      updates.expiresAt = expiryValue
+        ? firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59))
+        : firebase.firestore.FieldValue.delete();
+    }
     db.collection('ads').doc(id).update(updates)
       .then(() => showToast('Saved!', 'success'));
   });
   item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(getFilteredAdDocs()));
+}
+
+// Local YYYY-MM-DD for <input type="date">.
+function toDateInputValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /* ============================================================
@@ -1722,8 +1741,7 @@ function loadKioskSettings() {
     document.getElementById('setting-locked').checked = data.locked || false;
     document.getElementById('setting-prayer-reel').checked = !!(data.specialReels && data.specialReels.prayerTimes);
     document.getElementById('setting-prayer-reel-duration').value = (data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15;
-    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;
-  });
+    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;  });
 }
 
 document.getElementById('setting-locked').addEventListener('change', () => {
