@@ -43,13 +43,15 @@ Single file containing all customizable settings:
   expiresAt (optional), source ("newsletter-auto" for bot posters), imageHash, rawMessageId
 
 /settings/kiosk
-  locked, specialReels, hubIdleTimeoutSeconds
+  locked, hubIdleTimeoutSeconds,
+  specialReels { prayerTimes, prayerTimesDurationSeconds, saying, sayingDurationSeconds }
 
 /hub_content (collection)
   /announcements  { items: [{date, text}] }
   /events         { items: [{date, text}] }
   /donate         { text }
   /about          { text }
+  /saying         { quote, attribution, reference, updatedBy, updatedAt }  (Saying of the Week reel)
 ```
 
 Firestore rules: public reads; authenticated writes only.

@@ -116,6 +116,43 @@
           </div>
         </div>
 
+        <div class="ad-list-item ad-list-item-pinned" id="saying-reel-row">
+          <div class="ad-list-thumb-icon">💬</div>
+          <div class="ad-list-info">
+            <div class="fname">Saying of the Week</div>
+            <div class="meta" id="saying-reel-meta">Filled in weekly by the newsletter bot</div>
+          </div>
+          <div class="ad-list-actions">
+            <label class="ad-duration-inline">
+              Duration (s)
+              <input type="number" id="setting-saying-reel-duration" value="15" min="5">
+            </label>
+            <button class="btn btn-sm btn-secondary" id="btn-edit-saying">Edit</button>
+            <label class="toggle-label">
+              <input type="checkbox" id="setting-saying-reel"> Active
+            </label>
+            <span class="badge-builtin">Built-in</span>
+          </div>
+          <div class="inline-edit-form hidden" id="saying-edit-form">
+            <div class="admin-field">
+              <label>Saying</label>
+              <textarea id="saying-quote" rows="3" placeholder="Physical beauty is the outer beauty, and the beauty of the intellect is inner beauty."></textarea>
+            </div>
+            <div class="admin-field">
+              <label>Said by</label>
+              <input type="text" id="saying-attribution" placeholder="Imam Hassan Al Askari (as)">
+            </div>
+            <div class="admin-field">
+              <label>Source (optional)</label>
+              <input type="text" id="saying-reference" placeholder="Mizan ul Hikmah">
+            </div>
+            <div class="inline-edit-actions">
+              <button class="btn btn-sm" id="btn-save-saying">Save</button>
+              <button class="btn btn-sm btn-secondary" id="btn-cancel-saying">Cancel</button>
+            </div>
+          </div>
+        </div>
+
         <div id="ad-list"></div>
       </div>
 
@@ -297,6 +334,7 @@ auth.onAuthStateChanged(user => {
     loginCard.classList.add('hidden');
     adminContent.classList.remove('hidden');
     loadAdList();
+    loadSaying();
     loadHubContent();
     loadProgramsAdmin();
     loadGeminiApiKey();
@@ -1245,8 +1283,10 @@ as 0, and announcementText as an empty string. Do not guess or force-fit unrelat
 --- Program item extraction rules (only relevant when messageType is "program") ---
 IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
 Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
-(Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has
-a jamaat-time note in parentheses like "(6:30 AM Jamaat)". Only include lines that name something beyond
+(Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat), even if it has
+a jamaat-time note in parentheses like "(6:30 AM Jamaat)". EXCEPTION: always KEEP the Friday Jumu'ah
+Salaat line (any spelling, e.g. Jummah, Juma, Jumu'ah) — it is a weekly congregational event the masjid
+wants on the calendar. Apart from Jumu'ah, only include lines that name something beyond
 the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, or other named activity.
 If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah,
 Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure
@@ -1741,7 +1781,10 @@ function loadKioskSettings() {
     document.getElementById('setting-locked').checked = data.locked || false;
     document.getElementById('setting-prayer-reel').checked = !!(data.specialReels && data.specialReels.prayerTimes);
     document.getElementById('setting-prayer-reel-duration').value = (data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15;
-    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;  });
+    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;
+    document.getElementById('setting-saying-reel').checked = !!(data.specialReels && data.specialReels.saying);
+    document.getElementById('setting-saying-reel-duration').value = (data.specialReels && data.specialReels.sayingDurationSeconds) || 15;
+  });
 }
 
 document.getElementById('setting-locked').addEventListener('change', () => {
@@ -1760,6 +1803,67 @@ document.getElementById('setting-prayer-reel-duration').addEventListener('change
   const seconds = parseInt(document.getElementById('setting-prayer-reel-duration').value, 10) || 15;
   db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimesDurationSeconds: seconds } }, { merge: true })
     .then(() => showToast('Saved.', 'success'));
+});
+
+document.getElementById('setting-saying-reel').addEventListener('change', () => {
+  const enabled = document.getElementById('setting-saying-reel').checked;
+  db.collection('settings').doc('kiosk').set({ specialReels: { saying: enabled } }, { merge: true })
+    .then(() => showToast(enabled ? 'Saying slide enabled.' : 'Saying slide disabled.', 'success'));
+});
+
+document.getElementById('setting-saying-reel-duration').addEventListener('change', () => {
+  const seconds = parseInt(document.getElementById('setting-saying-reel-duration').value, 10) || 15;
+  db.collection('settings').doc('kiosk').set({ specialReels: { sayingDurationSeconds: seconds } }, { merge: true })
+    .then(() => showToast('Saved.', 'success'));
+});
+
+/* ============================================================
+   SAYING OF THE WEEK — hub_content/saying, written weekly by the
+   newsletter bot; editable here (a later newsletter replaces it).
+   ============================================================ */
+let currentSaying = {};
+
+function loadSaying() {
+  db.collection('hub_content').doc('saying').onSnapshot(doc => {
+    currentSaying = doc.exists ? doc.data() : {};
+    const meta = document.getElementById('saying-reel-meta');
+    if (!currentSaying.quote) {
+      meta.textContent = 'No saying yet. The newsletter bot fills this in weekly, or click Edit.';
+      return;
+    }
+    const quote = currentSaying.quote.length > 70 ? currentSaying.quote.slice(0, 70) + '…' : currentSaying.quote;
+    meta.textContent = `${quote}${currentSaying.attribution ? ' · ' + currentSaying.attribution : ''}`;
+  });
+}
+
+function toggleSayingEdit(open) {
+  document.getElementById('saying-edit-form').classList.toggle('hidden', !open);
+  if (!open) return;
+  document.getElementById('saying-quote').value = currentSaying.quote || '';
+  document.getElementById('saying-attribution').value = currentSaying.attribution || '';
+  document.getElementById('saying-reference').value = currentSaying.reference || '';
+}
+
+document.getElementById('btn-edit-saying').addEventListener('click', () => toggleSayingEdit(true));
+document.getElementById('btn-cancel-saying').addEventListener('click', () => toggleSayingEdit(false));
+document.getElementById('btn-save-saying').addEventListener('click', () => {
+  const quote = document.getElementById('saying-quote').value.trim();
+  if (!quote) {
+    showToast('Enter the saying first.', 'error');
+    return;
+  }
+  db.collection('hub_content').doc('saying').set({
+    quote,
+    attribution: document.getElementById('saying-attribution').value.trim(),
+    reference: document.getElementById('saying-reference').value.trim(),
+    updatedBy: 'manual',
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  })
+    .then(() => {
+      toggleSayingEdit(false);
+      showToast('Saying saved.', 'success');
+    })
+    .catch(err => showToast('Error: ' + err.message, 'error'));
 });
 
 document.getElementById('btn-save-settings').addEventListener('click', () => {

@@ -190,7 +190,7 @@ function testParseOnly(messageId) {
   const apiKey = getGeminiApiKey_(getFirestoreToken_());
   const parsed = parseNewsletterMessage_(message, apiKey);
   Logger.log(`Subject: ${message.getSubject()} (id ${message.getId()})`);
-  Logger.log(JSON.stringify({ programDays: parsed.programDays, announcements: parsed.announcements }, null, 2));
+  Logger.log(JSON.stringify({ programDays: parsed.programDays, announcements: parsed.announcements, saying: parsed.saying }, null, 2));
   if (parsed.textOnly) Logger.log('Text-only parse — no posters picked.');
   Logger.log(`Posters (${parsed.posters.length}):`);
   parsed.posters.forEach(p => Logger.log(
@@ -400,7 +400,7 @@ Wiladat Imam Hassan Al Askari (as)
 
 Each day block usually starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>", is sometimes followed by a line naming a special occasion, then a list of "<time> - <event label>" lines. A flyer for a single event (e.g. "Majlis on Friday October 3rd at 8 PM with Maulana X") is also a program day with one item.
 
-IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer Times display, so do NOT include a line that is only a routine obligatory prayer announcement (Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat, Jumu'ah Salaat), even if it has a jamaat-time note in parentheses like "(6:30 AM Jamaat)". Only include lines that name something beyond the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, majlis, or other named activity. If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah, Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure routine-prayer lines, a day has no items left AND no special occasion, omit that day entirely. But if the day still has a named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items list.
+IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer Times display, so do NOT include a line that is only a routine obligatory prayer announcement (Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat), even if it has a jamaat-time note in parentheses like "(6:30 AM Jamaat)". EXCEPTION: always KEEP the Friday Jumu'ah Salaat line (any spelling, e.g. Jummah, Juma, Jumu'ah) — it is a weekly congregational event the masjid wants on the calendar. Apart from Jumu'ah, only include lines that name something beyond the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, majlis, or other named activity. If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah, Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure routine-prayer lines, a day has no items left AND no special occasion, omit that day entirely. But if the day still has a named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items list.
 
 For each day:
 - monthName: full month name (e.g. "September")
@@ -431,6 +431,20 @@ For each poster:
 - title: a short title for it (e.g. "Majlis - Friday Oct 3"), under 60 characters
 
 Only include an image if you are confident it is a poster; when in doubt, leave it out.
+
+=== PART 4: Saying of the Week -> sayingOfTheWeek ===
+The newsletter text usually contains a short quote under the heading "Saying of the Week", often placed in the middle of the schedule. It looks like this:
+
+Saying of the Week
+"Physical beauty is the outer beauty, and the beauty of the intellect is inner beauty."
+~ Imam Hassan Al Askari (as)
+Misan Ul Hikmah
+
+Extract it exactly as written (do not paraphrase or summarize):
+- quote: the saying itself, without the surrounding quotation marks
+- attribution: who said it, without the leading "~" or dash (e.g. "Imam Hassan Al Askari (as)")
+- reference: the book or source line after the attribution if present (e.g. "Misan Ul Hikmah"), else an empty string
+If there is no Saying of the Week, return empty strings for all three. It is never a program day item or an announcement.
 
 Return empty arrays for anything not present. Do not guess or invent content that isn't in the newsletter.`;
 
@@ -485,9 +499,18 @@ const NEWSLETTER_PARSE_SCHEMA = {
         },
         required: ['imageIndex', 'title']
       }
+    },
+    sayingOfTheWeek: {
+      type: 'OBJECT',
+      properties: {
+        quote: { type: 'STRING' },
+        attribution: { type: 'STRING' },
+        reference: { type: 'STRING' }
+      },
+      required: ['quote', 'attribution', 'reference']
     }
   },
-  required: ['programDays', 'announcements', 'posters']
+  required: ['programDays', 'announcements', 'posters', 'sayingOfTheWeek']
 };
 
 function parseNewsletterMessage_(message, apiKey) {
@@ -734,7 +757,15 @@ function normalizeParsed_(raw, referenceDate) {
       text: a.text.trim()
     }));
 
-  return { programDays, announcements };
+  const s = raw.sayingOfTheWeek || {};
+  const quote = String(s.quote || '').trim().replace(/^["“”']+|["“”']+$/g, '').trim();
+  const saying = quote ? {
+    quote,
+    attribution: String(s.attribution || '').trim().replace(/^[~\-–—\s]+/, ''),
+    reference: String(s.reference || '').trim()
+  } : null;
+
+  return { programDays, announcements, saying };
 }
 
 function itemKey_(item) {
@@ -799,10 +830,21 @@ function publishParsed_(parsed, message, token) {
     patchDoc_(token, path, { items }, ['items']);
   }
 
+  // Each newsletter's saying replaces the last one (emails run oldest
+  // first, so the newest wins), including one typed in by hand in admin.
+  if (parsed.saying) {
+    patchDoc_(token, 'hub_content/saying', Object.assign({}, parsed.saying, {
+      updatedBy: 'newsletter-auto',
+      updatedAt: now,
+      rawMessageId: messageId
+    }));
+  }
+
   const posterResult = publishPosters_(parsed.posters, message, token);
 
   return `${parsed.programDays.length} program day(s), ${added} new announcement(s), ` +
     `${posterResult.added} new poster(s)` +
+    (parsed.saying ? ', saying of the week updated' : '') +
     (posterResult.renewed ? `, ${posterResult.renewed} renewed` : '') +
     (posterResult.failed ? `, ${posterResult.failed} poster upload(s) failed` : '') +
     (parsed.textOnly ? ' — text only, flyer images were skipped' : '');

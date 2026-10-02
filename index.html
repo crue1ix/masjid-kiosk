@@ -153,8 +153,9 @@ document.addEventListener('keydown', e => {
    ============================================================ */
 let kioskLocked = false;
 let hubIdleTimeoutMs = KIOSK_CONFIG.hubIdleTimeoutSeconds * 1000;
-let specialReels = { prayerTimes: false };
+let specialReels = { prayerTimes: false, saying: false };
 let prayerReelDurationMs = 15000;
+let sayingReelDurationMs = 15000;
 const tapHint = document.querySelector('.tap-hint');
 
 db.collection('settings').doc('kiosk').onSnapshot(doc => {
@@ -164,6 +165,16 @@ db.collection('settings').doc('kiosk').onSnapshot(doc => {
   hubIdleTimeoutMs = (data.hubIdleTimeoutSeconds || KIOSK_CONFIG.hubIdleTimeoutSeconds) * 1000;
   specialReels.prayerTimes = !!(data.specialReels && data.specialReels.prayerTimes);
   prayerReelDurationMs = ((data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15) * 1000;
+  specialReels.saying = !!(data.specialReels && data.specialReels.saying);
+  sayingReelDurationMs = ((data.specialReels && data.specialReels.sayingDurationSeconds) || 15) * 1000;
+  rebuildPlaylist();
+});
+
+// Saying of the Week — written weekly by the newsletter bot, editable in admin.
+let currentSaying = null;
+db.collection('hub_content').doc('saying').onSnapshot(doc => {
+  const data = doc.exists ? doc.data() : null;
+  currentSaying = data && data.quote ? data : null;
   rebuildPlaylist();
 });
 
@@ -207,7 +218,9 @@ db.collection('ads').orderBy('order').onSnapshot(snapshot => {
 // Special reels (e.g. prayer times) aren't part of the orderable `ads` list —
 // they're appended once per full loop, independent of manual ordering.
 function rebuildPlaylist() {
-  ads = specialReels.prayerTimes ? rawAds.concat([{ type: 'special', special: 'prayerTimes' }]) : rawAds.slice();
+  ads = rawAds.slice();
+  if (specialReels.prayerTimes) ads.push({ type: 'special', special: 'prayerTimes' });
+  if (specialReels.saying && currentSaying) ads.push({ type: 'special', special: 'saying' });
   currentAdIndex = 0;
   playCurrentAd();
 }
@@ -225,6 +238,9 @@ function playCurrentAd() {
 
   if (ad.type === 'special' && ad.special === 'prayerTimes') {
     renderPrayerReelSlide();
+  } else if (ad.type === 'special' && ad.special === 'saying') {
+    adWrap.innerHTML = buildSayingReelHtml(currentSaying);
+    adTimer = setTimeout(advanceAd, sayingReelDurationMs);
   } else if (ad.type === 'video') {
     const video = document.createElement('video');
     video.src = ad.url;
@@ -283,6 +299,34 @@ function buildPrayerReelHtml(t) {
       <img src="assets/Al-Hayy Logo.png" class="ad-prayer-logo" alt="Masjid Al-Hayy">
     </div>
   `;
+}
+
+function buildSayingReelHtml(saying) {
+  // Strip quote marks the newsletter wraps the saying in; the slide draws its own.
+  const quote = String(saying.quote).trim().replace(/^["“”']+|["“”']+$/g, '').trim();
+  const sizeClass = quote.length > 220 ? 'is-long' : quote.length > 120 ? 'is-medium' : '';
+  return `
+    <div class="ad-saying-slide">
+      <div class="star-field"></div>
+      <div class="ad-saying-frame"></div>
+      <div class="ad-saying-content">
+        <div class="ad-saying-heading">
+          <span class="ad-saying-flourish"></span>
+          Saying of the Week
+          <span class="ad-saying-flourish"></span>
+        </div>
+        <div class="ad-saying-mark">“</div>
+        <blockquote class="ad-saying-quote ${sizeClass}">${escapeHtml(quote)}</blockquote>
+        ${saying.attribution ? `<div class="ad-saying-attribution">${escapeHtml(saying.attribution)}</div>` : ''}
+        ${saying.reference ? `<div class="ad-saying-reference">${escapeHtml(saying.reference)}</div>` : ''}
+      </div>
+      <img src="assets/Al-Hayy Logo.png" class="ad-prayer-logo" alt="Masjid Al-Hayy">
+    </div>
+  `;
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 /* ============================================================
