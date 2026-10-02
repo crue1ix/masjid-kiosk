@@ -24,9 +24,11 @@ Two modes managed entirely in JavaScript with no routing:
 - **Ad Reel (idle):** Cycles through Firestore `ads` collection. Images advance by `duration` field (default 8s); videos play to completion. Uses `onSnapshot()` for real-time updates.
 - **Hub (active):** Tap triggers a star-wipe CSS transition. 6-tile grid (Prayer Times, Map, Announcements, Events, Donate, About). Auto-returns to ad reel after `hubIdleTimeoutSeconds` (default 30s) of inactivity.
 
-**`admin.html` — Admin interface**
+**`admin.html` — Admin interface** (markup) + **`admin.js`** (logic) + **`admin.css`** (styles, light theme; independent of `style.css`)
 
 Firebase email/password auth gate. Admins upload media directly to Cloudinary (unsigned upload preset — no backend), which writes the resulting URL + metadata to Firestore.
+
+Hash-routed pages, all kept in the DOM so unsaved edits survive switching: `#home` (live overview + kiosk preview), `#reel` (built-in slides + uploaded/newsletter slides), `#announcements`, `#programs` (day list + day editor + AI import from pasted text), `#settings` (lock, idle timeout, bot/AI-key status, danger zone). Sidebar on wide screens, bottom bar under 900px. Unsaved edits (announcements, a program day) show a sticky Save/Discard bar.
 
 ### Configuration (`firebase-config.js`)
 
@@ -68,7 +70,7 @@ Firestore rules: public reads; authenticated writes only.
 
 ### CSS design tokens
 
-Defined as CSS custom properties in `style.css`: `--bg-deep`, `--gold`, etc. Star-wipe and fade animations are keyframe-defined there.
+Defined as CSS custom properties in `style.css` (kiosk only): `--bg-deep`, `--gold`, etc. Star-wipe and fade animations are keyframe-defined there. The admin page has its own tokens in `admin.css` (`--bg`, `--surface`, `--gold`, …).
 
 ### Interface of the Kiosk
 

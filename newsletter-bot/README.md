@@ -2,21 +2,22 @@
 
 This bot puts newsletter content on the kiosk without anyone typing it in. A Google Apps Script runs inside a dedicated Gmail account that is subscribed to the masjid's email newsletter. Every 30 minutes it checks that inbox for new issues. It sends each issue's text and flyer images or PDFs to Gemini, then publishes what Gemini extracts to Firestore:
 
-- **Program days** go to `programs/{YYYY-MM-DD}`, the same documents the "Parse with AI" tool in `admin.html` writes. Lines that only announce a routine salaat are skipped, just like the paste tool. Friday's Jumu'ah Salaat is the exception and is always kept.
+- **Program days** go to `programs/{YYYY-MM-DD}`, the same documents the "Import a schedule from text" tool in `admin.html` writes. Lines that only announce a routine salaat are skipped, just like the paste tool. Friday's Jumu'ah Salaat is the exception and is always kept.
   - If a day already exists, the new items are **merged** in; nothing is overwritten. Duplicate items (same time and label) are ignored, so manual edits in admin survive.
 - **Announcements** are appended to `hub_content/announcements`.
   - Repeats are caught even when worded differently. Gemini is shown the announcements already on the kiosk and says which one each new announcement repeats. A repeat updates the bot's existing card with the newest wording instead of adding another. Cards you typed in by hand are never changed.
   - Announcements the bot added are removed automatically after 30 days. Ones you add by hand are never touched.
+  - If you edit the text of one the bot added, it becomes yours (marked "Edited by you" in admin): the bot won't reword it or auto-remove it.
 
-- **Saying of the Week** is copied word-for-word into `hub_content/saying` (`quote`, `attribution`, `reference`). Each newsletter's saying replaces the last one. The kiosk shows it as a built-in slide, which you turn on with the **Saying of the Week** row's Active switch in the admin Media list. You can fix the text with that row's **Edit** button.
+- **Saying of the Week** is copied word-for-word into `hub_content/saying` (`quote`, `attribution`, `reference`). Each newsletter's saying replaces the last one. The kiosk shows it as a built-in slide, which you turn on in admin under **Ad Reel → Built-in slides**. You can fix the text with its **Edit** button.
 - **Posters** go into the ad reel (`ads`).
   - Gemini looks at every image in the email and picks out the posters: designed flyers for an event, program, class, fundraiser or occasion. It skips logos, header banners, photos, social icons, QR-only images and bank-detail graphics.
-  - Each poster is uploaded to Cloudinary and goes live in the reel right away, tagged **📧 Newsletter** in the admin Media list.
-  - Each poster is set to expire **7 days** after it's added (`POSTER_EXPIRY_DAYS` in `Code.gs`). To change one poster's expiry, click **Edit** on it in the Media list and pick a new "Expires on" date, or clear the date to keep it indefinitely.
+  - Each poster is uploaded to Cloudinary and goes live in the reel right away, tagged **📧 From newsletter** on admin's Ad Reel page.
+  - Each poster is set to expire **7 days** after it's added (`POSTER_EXPIRY_DAYS` in `Code.gs`). To change one poster's expiry, click **Edit** on it in the Ad Reel page and pick a new "Remove automatically on" date, or clear the date to keep it indefinitely.
   - If a later newsletter carries the same flyer again (same file), the existing ad's expiry is pushed out to 7 days from then instead of adding a copy. The bot never shortens an expiry you set, and never adds one back to a poster you cleared.
   - Expired bot posters are deleted from `ads` on the next run. Manual uploads are never touched. The file stays in Cloudinary, because the unsigned preset can't delete it.
 
-Everything goes live right away. If the AI gets something wrong, edit or delete it in `admin.html` as usual. The Programs Calendar section of `admin.html` shows a status line with the bot's last check, the last newsletter it published and its last error.
+Everything goes live right away. If the AI gets something wrong, edit or delete it in `admin.html` as usual. The admin Home page shows the bot's health (green, amber or red), and Settings → Newsletter bot shows its last check, the last newsletter it published and its last error.
 
 It costs nothing to run: Apps Script, Gmail and the Gemini free tier are all free, and there is no server to host.
 

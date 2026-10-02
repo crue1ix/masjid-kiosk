@@ -2,286 +2,553 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Masjid Kiosk — Admin</title>
-<link rel="stylesheet" href="style.css">
-<style>
-  html, body { overflow-y: auto; height: auto; min-height: 100vh; overscroll-behavior: auto; }
-</style>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Kiosk Admin</title>
+<link rel="stylesheet" href="admin.css">
 </head>
-<body class="admin-page">
+<body>
 
-<div class="admin-body">
-
-  <!-- LOGIN CARD -->
-  <div class="admin-card" id="login-card">
-    <h1>Sign in</h1>
-    <form id="login-form">
-      <div class="admin-field">
-        <label>Username</label>
-        <input type="text" id="login-username" autocomplete="username">
-      </div>
-      <div class="admin-field">
-        <label>Password</label>
-        <input type="password" id="login-password" autocomplete="current-password">
-      </div>
-      <button class="btn" id="btn-login" type="submit">Sign in</button>
-    </form>
-    <div class="status-msg error" id="login-error"></div>
-  </div>
-
-  <!-- UPLOAD + LIST (shown after login) -->
-  <div id="admin-content" class="hidden">
-
-    <div class="admin-card">
-      <h1>Kiosk Media — <span id="masjid-name-label"></span></h1>
-      <button class="btn btn-secondary" id="btn-logout">Sign out</button>
+<!-- ============================================================
+     SIGN IN
+     ============================================================ -->
+<div class="login-screen" id="login-screen">
+  <form class="login-card" id="login-form">
+    <img src="assets/Al-Hayy Logo.png" class="login-logo" alt="">
+    <h1>Kiosk Admin</h1>
+    <p>Sign in to manage the <span class="js-masjid-name"></span> screen.</p>
+    <div class="field">
+      <label for="login-username">Username</label>
+      <input type="text" id="login-username" autocomplete="username" autocapitalize="none">
     </div>
-
-    <div class="admin-tabs" role="tablist">
-      <button class="admin-tab-btn" data-tab="media" type="button">Media</button>
-      <button class="admin-tab-btn" data-tab="preview" type="button">Preview</button>
-      <button class="admin-tab-btn" data-tab="settings" type="button">Settings</button>
-      <button class="admin-tab-btn" data-tab="content" type="button">Content</button>
+    <div class="field">
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" autocomplete="current-password">
     </div>
+    <button class="btn btn-primary btn-block" id="btn-login" type="submit">Sign in</button>
+    <div class="form-error" id="login-error"></div>
+  </form>
+</div>
 
-    <div class="tab-panel" data-tab-panel="media">
+<!-- ============================================================
+     APP
+     ============================================================ -->
+<div class="app hidden" id="app">
 
-      <!-- ── UPLOAD ── -->
-      <div class="admin-card">
-        <h2>Upload new media</h2>
-        <div class="admin-field">
-          <label>Image or video file</label>
-          <div class="upload-dropzone" id="upload-dropzone">
-            <input type="file" id="upload-file" accept="image/*,video/*">
-            <div class="upload-dropzone-hint" id="upload-dropzone-hint">
-              <div class="upload-dropzone-icon">📤</div>
-              Drag a file here, or click to browse
-            </div>
-            <div class="upload-preview hidden" id="upload-preview">
-              <div class="upload-preview-thumb" id="upload-preview-thumb"></div>
-              <div class="upload-preview-info">
-                <div class="fname" id="upload-preview-name"></div>
-                <div class="meta" id="upload-preview-meta"></div>
+  <aside class="sidebar">
+    <div class="brand">
+      <img src="assets/Al-Hayy Logo.png" alt="">
+      <div>
+        <div class="brand-name js-masjid-name"></div>
+        <div class="brand-sub">Kiosk admin</div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="Sections">
+      <a class="nav-link" href="#home" data-page="home"><i data-icon="home"></i><span>Home</span></a>
+      <a class="nav-link" href="#reel" data-page="reel"><i data-icon="reel"></i><span>Ad Reel</span></a>
+      <a class="nav-link" href="#announcements" data-page="announcements"><i data-icon="megaphone"></i><span>Announcements</span></a>
+      <a class="nav-link" href="#programs" data-page="programs"><i data-icon="calendar"></i><span>Programs</span></a>
+      <a class="nav-link" href="#settings" data-page="settings"><i data-icon="sliders"></i><span>Settings</span></a>
+    </nav>
+    <div class="sidebar-foot">
+      Signed in as <strong class="js-username"></strong>
+      <button class="btn btn-ghost btn-sm js-logout" type="button"><i data-icon="logout"></i>Sign out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <img src="assets/Al-Hayy Logo.png" alt="">
+      <div class="brand-name js-masjid-name"></div>
+    </header>
+
+    <!-- ── HOME ── -->
+    <section class="page" data-page="home">
+      <div class="page-head">
+        <div>
+          <h1 id="home-greeting">Assalamu alaikum</h1>
+          <p class="page-lede" id="home-date"></p>
+        </div>
+      </div>
+
+      <div class="home-grid">
+        <div class="home-main">
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-label">Kiosk screen</div>
+              <div class="stat-value" id="home-lock-value">…</div>
+              <div class="stat-desc" id="home-lock-desc"></div>
+              <div class="stat-foot">
+                <label class="switch">
+                  <input type="checkbox" id="home-lock-toggle">
+                  <span class="switch-track"></span>
+                  <span class="switch-label js-switch-text" data-on="Locked" data-off="Unlocked">Unlocked</span>
+                </label>
               </div>
             </div>
+
+            <div class="stat-card">
+              <div class="stat-label">Ad reel</div>
+              <div class="stat-value" id="home-reel-value">…</div>
+              <div class="stat-desc" id="home-reel-desc"></div>
+              <div class="stat-foot"><a class="card-link" href="#reel">Manage slides →</a></div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-label"><span class="dot" id="home-bot-dot"></span>Newsletter bot</div>
+              <div class="stat-value" id="home-bot-value">…</div>
+              <div class="stat-desc" id="home-bot-desc"></div>
+              <div class="stat-foot"><a class="card-link" href="#settings">Details →</a></div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-label">Saying of the Week</div>
+              <div class="stat-quote" id="home-saying-quote"></div>
+              <div class="stat-desc" id="home-saying-desc"></div>
+              <div class="stat-foot"><a class="card-link" href="#reel">Change →</a></div>
+            </div>
           </div>
-          <div class="status-msg error hidden" id="upload-error"></div>
+
+          <div class="quick-actions">
+            <button class="quick-action" type="button" data-action="upload"><span class="quick-action-icon"><i data-icon="upload"></i></span>Upload a slide</button>
+            <button class="quick-action" type="button" data-action="announcement"><span class="quick-action-icon"><i data-icon="plus"></i></span>New announcement</button>
+            <button class="quick-action" type="button" data-action="import"><span class="quick-action-icon"><i data-icon="sparkle"></i></span>Import schedule with AI</button>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2 id="home-programs-title">Today's programs</h2>
+                <div class="card-sub" id="home-programs-sub"></div>
+              </div>
+              <a class="card-link" href="#programs">Open calendar →</a>
+            </div>
+            <div id="home-programs"><div class="loading-state"><div class="spinner"></div>Loading…</div></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <h2>Announcements</h2>
+                <div class="card-sub">What visitors see first on the Announcements tile</div>
+              </div>
+              <a class="card-link" href="#announcements">See all →</a>
+            </div>
+            <div id="home-announcements"><div class="loading-state"><div class="spinner"></div>Loading…</div></div>
+          </div>
         </div>
-        <div class="admin-field">
-          <label>Title (for your reference)</label>
-          <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
+
+        <aside class="home-side">
+          <div class="card">
+            <div class="card-head">
+              <h2>Live kiosk</h2>
+              <div class="preview-tools">
+                <button class="icon-btn" type="button" id="btn-preview-refresh" title="Refresh preview" aria-label="Refresh preview"><i data-icon="refresh"></i></button>
+                <button class="icon-btn" type="button" id="btn-preview-enlarge" title="Enlarge preview" aria-label="Enlarge preview"><i data-icon="expand"></i></button>
+                <button class="icon-btn" type="button" id="btn-preview-open" title="Open in a new tab" aria-label="Open in a new tab"><i data-icon="external"></i></button>
+              </div>
+            </div>
+            <div class="preview-stage" id="preview-stage">
+              <iframe id="preview-frame" title="Live kiosk preview" tabindex="-1"></iframe>
+              <button class="preview-load" type="button" id="btn-preview-load"><i data-icon="monitor"></i>Show live preview</button>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ── AD REEL ── -->
+    <section class="page hidden" data-page="reel">
+      <div class="page-head">
+        <div>
+          <h1>Ad Reel</h1>
+          <p class="page-lede">These slides play full-screen on the kiosk whenever nobody is touching it. Your slides play top to bottom, then the built-in slides, then it repeats.</p>
         </div>
-        <div class="admin-field" id="duration-field">
-          <label>Duration in seconds (images only)</label>
-          <input type="number" id="upload-duration" value="8" min="2">
-        </div>
-        <div class="admin-field">
-          <label>Order (lower = first)</label>
-          <input type="number" id="upload-order" value="1">
-        </div>
-        <div class="admin-field">
-          <label>Auto-remove after this many days (optional — leave blank to keep indefinitely)</label>
-          <input type="number" id="upload-expiry-days" placeholder="e.g. 7" min="1">
-        </div>
-        <button class="btn" id="btn-upload">Upload</button>
-        <div class="progress-bar" id="progress-wrap" style="display:none;">
-          <div class="progress-bar-fill" id="progress-fill"></div>
+        <div class="page-actions">
+          <button class="btn btn-primary" type="button" id="btn-open-upload"><i data-icon="upload"></i>Upload slide</button>
         </div>
       </div>
 
-      <!-- ── MEDIA LIST ── -->
-      <div class="admin-card">
-        <h2>Current media</h2>
-        <p class="field-hint">Drag ⠿ to reorder · click a thumbnail to preview · ⬇ to download.</p>
-        <div class="admin-field" id="media-search-field">
-          <input type="text" id="media-search" placeholder="Search by title or type…">
-        </div>
-
-        <div class="ad-list-item ad-list-item-pinned" id="prayer-reel-row">
-          <div class="ad-list-thumb-icon">🕌</div>
-          <div class="ad-list-info">
-            <div class="fname">Prayer Times Slide</div>
-            <div class="meta">Plays once per loop through the reel</div>
+      <div class="section-title" style="margin-top:0"><h2>Built-in slides</h2></div>
+      <p class="section-lede">Made automatically by the kiosk. Turn them on or off and choose how long they stay on screen.</p>
+      <div class="builtin-grid">
+        <div class="builtin-card">
+          <div class="builtin-top">
+            <div class="builtin-icon">🕌</div>
+            <div>
+              <div class="builtin-title">Prayer Times</div>
+              <div class="builtin-desc">Today's prayer times, updated automatically every day.</div>
+            </div>
           </div>
-          <div class="ad-list-actions">
-            <label class="ad-duration-inline">
-              Duration (s)
-              <input type="number" id="setting-prayer-reel-duration" value="15" min="5">
+          <div class="builtin-controls">
+            <label class="input-inline">Show for <input type="number" id="setting-prayer-reel-duration" value="15" min="5"> sec</label>
+            <label class="switch">
+              <input type="checkbox" id="setting-prayer-reel">
+              <span class="switch-track"></span>
+              <span class="switch-label js-switch-text" data-on="Showing" data-off="Off">Off</span>
             </label>
-            <label class="toggle-label">
-              <input type="checkbox" id="setting-prayer-reel"> Active
-            </label>
-            <span class="badge-builtin">Built-in</span>
           </div>
         </div>
 
-        <div class="ad-list-item ad-list-item-pinned" id="saying-reel-row">
-          <div class="ad-list-thumb-icon">💬</div>
-          <div class="ad-list-info">
-            <div class="fname">Saying of the Week</div>
-            <div class="meta" id="saying-reel-meta">Filled in weekly by the newsletter bot</div>
+        <div class="builtin-card">
+          <div class="builtin-top">
+            <div class="builtin-icon">💬</div>
+            <div>
+              <div class="builtin-title">Saying of the Week</div>
+              <div class="builtin-desc" id="saying-reel-meta">Filled in weekly by the newsletter bot.</div>
+            </div>
           </div>
-          <div class="ad-list-actions">
-            <label class="ad-duration-inline">
-              Duration (s)
-              <input type="number" id="setting-saying-reel-duration" value="15" min="5">
+          <div class="builtin-controls">
+            <label class="input-inline">Show for <input type="number" id="setting-saying-reel-duration" value="15" min="5"> sec</label>
+            <button class="btn btn-secondary btn-sm" type="button" id="btn-edit-saying"><i data-icon="pencil"></i>Edit</button>
+            <label class="switch">
+              <input type="checkbox" id="setting-saying-reel">
+              <span class="switch-track"></span>
+              <span class="switch-label js-switch-text" data-on="Showing" data-off="Off">Off</span>
             </label>
-            <button class="btn btn-sm btn-secondary" id="btn-edit-saying">Edit</button>
-            <label class="toggle-label">
-              <input type="checkbox" id="setting-saying-reel"> Active
-            </label>
-            <span class="badge-builtin">Built-in</span>
           </div>
-          <div class="inline-edit-form hidden" id="saying-edit-form">
-            <div class="admin-field">
-              <label>Saying</label>
-              <textarea id="saying-quote" rows="3" placeholder="Physical beauty is the outer beauty, and the beauty of the intellect is inner beauty."></textarea>
-            </div>
-            <div class="admin-field">
-              <label>Said by</label>
-              <input type="text" id="saying-attribution" placeholder="Imam Hassan Al Askari (as)">
-            </div>
-            <div class="admin-field">
-              <label>Source (optional)</label>
-              <input type="text" id="saying-reference" placeholder="Mizan ul Hikmah">
-            </div>
-            <div class="inline-edit-actions">
-              <button class="btn btn-sm" id="btn-save-saying">Save</button>
-              <button class="btn btn-sm btn-secondary" id="btn-cancel-saying">Cancel</button>
-            </div>
-          </div>
-        </div>
-
-        <div id="ad-list"></div>
-      </div>
-
-    </div>
-
-    <div class="tab-panel hidden" data-tab-panel="preview">
-
-      <!-- ── LIVE KIOSK PREVIEW ── -->
-      <div class="admin-card">
-        <h2>Live Kiosk Preview</h2>
-        <p class="field-hint">Shows the kiosk in real time — tap the preview like a visitor would.</p>
-        <div class="preview-toolbar">
-          <button class="btn btn-sm btn-secondary" id="btn-preview-refresh">↻ Refresh</button>
-          <button class="btn btn-sm btn-secondary" id="btn-preview-open">↗ Open in new tab</button>
-        </div>
-        <div class="kiosk-preview-stage" id="kiosk-preview-stage">
-          <iframe id="kiosk-preview-frame" title="Live kiosk preview"></iframe>
         </div>
       </div>
 
-    </div>
-
-    <div class="tab-panel hidden" data-tab-panel="settings">
-
-      <!-- ── KIOSK SETTINGS ── -->
-      <div class="admin-card">
-        <h2>Kiosk Settings</h2>
-
-        <div class="admin-field">
-          <label class="toggle-label toggle-label-lg">
-            <input type="checkbox" id="setting-locked">
-            Lock screen
-          </label>
-          <p class="field-hint">Visitors can't open the hub. Applies instantly.</p>
+      <div class="section-title"><h2>Your slides</h2><span class="muted" id="reel-count"></span></div>
+      <p class="section-lede">Images and videos you've uploaded, plus posters the newsletter bot adds (marked 📧). Bot posters remove themselves after 7 days.</p>
+      <div class="reel-toolbar">
+        <div class="search-box">
+          <i data-icon="search"></i>
+          <input type="search" id="media-search" placeholder="Search by title" aria-label="Search slides">
         </div>
-
-        <div class="admin-field">
-          <label>Hub idle timeout (seconds)</label>
-          <input type="number" id="setting-idle-timeout" value="30" min="5">
-          <p class="field-hint">Hub auto-closes after this many seconds idle.</p>
+        <div class="filter-row" id="reel-filters">
+          <button class="filter-chip active" type="button" data-filter="all">All</button>
+          <button class="filter-chip" type="button" data-filter="showing">Showing</button>
+          <button class="filter-chip" type="button" data-filter="hidden">Hidden</button>
+          <button class="filter-chip" type="button" data-filter="newsletter">From newsletter</button>
+          <button class="filter-chip" type="button" data-filter="expiring">Expiring soon</button>
         </div>
-        <button class="btn btn-sm" id="btn-save-settings">Save Settings</button>
+      </div>
+      <p class="list-hint" id="reel-hint"></p>
+      <div class="slide-list" id="ad-list"><div class="loading-state"><div class="spinner"></div>Loading slides…</div></div>
+    </section>
+
+    <!-- ── ANNOUNCEMENTS ── -->
+    <section class="page hidden" data-page="announcements">
+      <div class="page-head">
+        <div>
+          <h1>Announcements</h1>
+          <p class="page-lede">Shown when visitors tap the Announcements tile, soonest date first. The newsletter bot adds new ones automatically and removes its own after 30 days. Anything you add or edit here stays until you delete it.</p>
+        </div>
+        <div class="page-actions">
+          <button class="btn btn-primary" type="button" id="btn-add-announcement"><i data-icon="plus"></i>New announcement</button>
+        </div>
+      </div>
+      <div class="ann-list" id="announcements-list"><div class="loading-state"><div class="spinner"></div>Loading…</div></div>
+    </section>
+
+    <!-- ── PROGRAMS ── -->
+    <section class="page hidden" data-page="programs">
+      <div class="page-head">
+        <div>
+          <h1>Programs Calendar</h1>
+          <p class="page-lede">Fills the calendar on the kiosk's Events tile. Each week's schedule is added automatically from the newsletter; you can fix or add days here.</p>
+          <div class="bot-line"><span class="dot" id="programs-bot-dot"></span><span id="programs-bot-text">Checking the newsletter bot…</span></div>
+        </div>
       </div>
 
-    </div>
-
-    <div class="tab-panel hidden" data-tab-panel="content">
-
-      <!-- ── HUB CONTENT ── -->
-      <div class="admin-card">
-        <h2>Hub Content</h2>
-
-        <div class="hub-content-section">
-          <h3>Announcements</h3>
-          <div id="announcements-list"></div>
-          <button class="btn btn-secondary btn-sm" id="btn-add-announcement">+ Add item</button>
-          <button class="btn btn-sm" id="btn-save-announcements">Save</button>
-          <span class="dirty-badge hidden" id="announcements-dirty">● Unsaved changes</span>
-        </div>
-
-        <div class="hub-content-section">
-          <h3>Programs Calendar</h3>
-          <p class="field-hint">New newsletter emails are published here automatically by the newsletter bot. You can also paste the weekly WhatsApp announcement below to have AI turn it into calendar entries, or add/edit a single day by hand further down. Publishing a day fully replaces whatever was there before.</p>
-
-          <div class="admin-field">
-            <label>Paste WhatsApp announcement text</label>
-            <textarea id="program-paste-input" rows="10" placeholder="Paste the full weekly programs message here…"></textarea>
-            <button type="button" class="btn btn-sm" id="btn-parse-paste">Parse with AI</button>
-            <span class="field-hint" id="program-parse-status"></span>
+      <details class="card import-card" id="import-card">
+        <summary>
+          <span class="quick-action-icon"><i data-icon="sparkle"></i></span>
+          <span>
+            <span class="import-title">Import a schedule from text</span><br>
+            <span class="import-sub">Paste a WhatsApp or email message and AI turns it into calendar days you can review.</span>
+          </span>
+        </summary>
+        <div class="import-body">
+          <div class="field">
+            <label for="program-paste-input">Message text</label>
+            <textarea id="program-paste-input" rows="8" placeholder="Paste the full weekly programs message here…"></textarea>
+            <p class="field-hint">Routine salaat lines are left out automatically (Jumu'ah is kept). If the text is a general notice instead of a schedule, it's added to Announcements for you to check.</p>
           </div>
-          <p class="field-hint" id="newsletter-bot-status"></p>
-
+          <div class="parse-row">
+            <button type="button" class="btn btn-primary" id="btn-parse-paste"><i data-icon="sparkle"></i>Read with AI</button>
+            <span class="parse-status" id="program-parse-status"></span>
+          </div>
           <div id="program-parse-preview"></div>
+        </div>
+      </details>
 
-          <div id="programs-upcoming-list"></div>
+      <div class="programs-layout" id="programs-layout">
+        <div class="card programs-list-pane">
+          <div class="card-head"><h2>Upcoming days</h2></div>
+          <div class="add-day-row">
+            <input type="date" id="program-day-picker" aria-label="Pick a date to add or edit">
+            <button type="button" class="btn btn-secondary" id="btn-load-program-day">Open day</button>
+          </div>
+          <div class="day-list" id="programs-upcoming-list"><div class="loading-state"><div class="spinner"></div>Loading…</div></div>
+        </div>
 
-          <div class="admin-field">
-            <label>Add / edit a specific day</label>
-            <div class="program-day-picker-row">
-              <input type="date" id="program-day-picker">
-              <button type="button" class="btn btn-secondary btn-sm" id="btn-load-program-day">Load / Create</button>
-            </div>
+        <div class="card programs-editor-pane">
+          <div class="empty-state" id="program-editor-empty">
+            <div class="empty-state-icon">📅</div>
+            <p>Pick a day on the left to see or change its programs,<br>or choose a date to add a new one.</p>
           </div>
 
           <div id="program-day-editor" class="hidden">
-            <div class="admin-field">
-              <label>Special occasion (optional)</label>
-              <input type="text" id="program-occasion" placeholder="e.g. Wiladat Imam Hassan Al Askari (as)">
+            <div class="editor-head">
+              <button type="button" class="btn btn-ghost btn-sm mobile-only" id="btn-editor-back">‹ All days</button>
+              <h2 id="program-editor-title"></h2>
+              <span id="program-editor-source"></span>
             </div>
-            <div class="admin-field">
-              <label>Hijri subtitle (optional)</label>
-              <input type="text" id="program-hijri" placeholder="e.g. 6th Night of Rabi al-Akhir">
+            <div class="editor-fields">
+              <div class="field">
+                <label for="program-occasion">Special occasion <span class="muted">(optional)</span></label>
+                <input type="text" id="program-occasion" placeholder="e.g. Wiladat Imam Hassan Al Askari (as)">
+              </div>
+              <div class="field">
+                <label for="program-hijri">Hijri date <span class="muted">(optional)</span></label>
+                <input type="text" id="program-hijri" placeholder="e.g. 6th Night of Rabi al-Akhir">
+              </div>
             </div>
+            <div class="items-head"><span></span><span>Time</span><span>Program</span><span>Speaker</span><span>Note</span><span></span></div>
             <div id="program-items-list"></div>
-            <button type="button" class="btn btn-secondary btn-sm" id="btn-add-program-item">+ Add item</button>
-            <div class="program-day-actions">
-              <button type="button" class="btn btn-sm" id="btn-save-program-day">Save Day</button>
-              <button type="button" class="btn btn-sm btn-danger" id="btn-delete-program-day">Delete Day</button>
-              <span class="dirty-badge hidden" id="program-day-dirty">● Unsaved changes</span>
+            <button type="button" class="btn btn-ghost btn-sm" id="btn-add-program-item" style="margin-top:0.4rem"><i data-icon="plus"></i>Add a program</button>
+            <div class="editor-actions">
+              <button type="button" class="btn btn-primary" id="btn-save-program-day">Save day</button>
+              <span class="spacer"></span>
+              <button type="button" class="btn btn-danger" id="btn-delete-program-day"><i data-icon="trash"></i>Delete day</button>
             </div>
           </div>
+        </div>
+      </div>
+    </section>
 
-          <div class="program-danger-zone">
-            <button type="button" class="btn btn-sm btn-danger" id="btn-delete-all-programs">Delete All Events</button>
+    <!-- ── SETTINGS ── -->
+    <section class="page hidden" data-page="settings">
+      <div class="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p class="page-lede">How the kiosk behaves, the automatic helpers that keep it up to date, and your account.</p>
+        </div>
+      </div>
+
+      <div class="settings-stack">
+        <div class="card">
+          <div class="card-head"><h2>Kiosk screen</h2></div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">Lock the screen</div>
+              <div class="setting-desc">Visitors can't open the touch menu; the screen only plays the slides. Takes effect immediately.</div>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="setting-locked">
+              <span class="switch-track"></span>
+              <span class="switch-label js-switch-text" data-on="Locked" data-off="Unlocked">Unlocked</span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">Go back to the slides after</div>
+              <div class="setting-desc">When someone stops touching the screen, the menu closes and the slides start again after this long.</div>
+            </div>
+            <label class="input-inline"><input type="number" id="setting-idle-timeout" value="30" min="5"> seconds</label>
           </div>
         </div>
 
+        <div class="card">
+          <div class="card-head"><h2>Newsletter bot</h2></div>
+          <div class="status-headline"><span class="dot" id="settings-bot-dot"></span><span id="settings-bot-headline">Checking…</span></div>
+          <dl class="status-list" id="settings-bot-details"></dl>
+          <div class="how-it-works">
+            Every 30 minutes the bot reads new emails from the masjid newsletter and adds the week's programs, announcements, posters and Saying of the Week to the kiosk automatically. Setup and troubleshooting: <code>newsletter-bot/README.md</code>.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>AI reading (Gemini)</h2></div>
+          <div class="status-headline"><span class="dot" id="ai-key-dot"></span><span id="ai-key-headline">Checking…</span></div>
+          <p class="field-hint" id="ai-key-desc"></p>
+        </div>
+
+        <div class="card">
+          <div class="card-head"><h2>Account</h2></div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">Signed in as <span class="js-username"></span></div>
+              <div class="setting-desc">Admin accounts are managed in the Firebase Console.</div>
+            </div>
+            <button class="btn btn-secondary js-logout" type="button"><i data-icon="logout"></i>Sign out</button>
+          </div>
+        </div>
+
+        <div class="card danger-card">
+          <div class="card-head"><h2>Danger zone</h2></div>
+          <div class="setting-row">
+            <div>
+              <div class="setting-title">Delete all events</div>
+              <div class="setting-desc">Removes every day from the Programs Calendar, past and future. This can't be undone.</div>
+            </div>
+            <button type="button" class="btn btn-danger" id="btn-delete-all-programs">Delete all events</button>
+          </div>
+        </div>
       </div>
+    </section>
+  </main>
 
+  <!-- Unsaved changes -->
+  <div class="dirty-bar hidden" id="dirty-bar" role="status">
+    <span class="dirty-bar-text" id="dirty-bar-text"></span>
+    <div class="dirty-bar-actions">
+      <button class="btn btn-ghost btn-sm" type="button" id="dirty-goto">Go there</button>
+      <button class="btn btn-ghost btn-sm" type="button" id="dirty-discard">Discard</button>
+      <button class="btn btn-primary btn-sm" type="button" id="dirty-save">Save</button>
     </div>
-
   </div>
-
 </div>
 
-<!-- Toast notifications -->
+<!-- ============================================================
+     DIALOGS
+     ============================================================ -->
+<dialog class="modal" id="dlg-upload" autofocus>
+  <div class="modal-head">
+    <h2>Upload a slide</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+  </div>
+  <div class="modal-body">
+    <div class="field">
+      <div class="upload-dropzone" id="upload-dropzone">
+        <input type="file" id="upload-file" accept="image/*,video/*" aria-label="Image or video file">
+        <div class="upload-dropzone-hint" id="upload-dropzone-hint">
+          <div class="upload-dropzone-icon"><i data-icon="upload"></i></div>
+          <strong>Drop an image or video here</strong><br>or click to choose a file (up to 200 MB)
+        </div>
+        <div class="upload-preview hidden" id="upload-preview">
+          <div class="upload-preview-thumb" id="upload-preview-thumb"></div>
+          <div class="upload-preview-info">
+            <div class="fname" id="upload-preview-name"></div>
+            <div class="meta" id="upload-preview-meta"></div>
+          </div>
+        </div>
+      </div>
+      <div class="form-error hidden" id="upload-error"></div>
+    </div>
+    <div class="field">
+      <label for="upload-title">Title <span class="muted">(only you see this)</span></label>
+      <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
+    </div>
+    <div class="field-grid">
+      <div class="field" id="duration-field">
+        <label for="upload-duration">Show for (seconds)</label>
+        <input type="number" id="upload-duration" value="8" min="2">
+        <p class="field-hint">Videos always play to the end.</p>
+      </div>
+      <div class="field">
+        <label for="upload-order">Position</label>
+        <input type="number" id="upload-order" value="1">
+        <p class="field-hint">Lower numbers play first.</p>
+      </div>
+    </div>
+    <div class="field">
+      <label for="upload-expiry-days">Remove automatically after <span class="muted">(optional)</span></label>
+      <input type="number" id="upload-expiry-days" placeholder="Number of days. Leave blank to keep it." min="1">
+    </div>
+    <div class="progress-bar hidden" id="progress-wrap"><div class="progress-bar-fill" id="progress-fill"></div></div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+    <button class="btn btn-primary" type="button" id="btn-upload">Upload</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="dlg-edit-slide">
+  <div class="modal-head">
+    <h2>Edit slide</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+  </div>
+  <div class="modal-body">
+    <div class="field">
+      <label for="edit-title">Title</label>
+      <input type="text" id="edit-title" autofocus>
+    </div>
+    <div class="field-grid">
+      <div class="field" id="edit-duration-field">
+        <label for="edit-duration">Show for (seconds)</label>
+        <input type="number" id="edit-duration" min="2">
+      </div>
+      <div class="field">
+        <label for="edit-order">Position</label>
+        <input type="number" id="edit-order">
+      </div>
+    </div>
+    <div class="field">
+      <label for="edit-expiry">Remove automatically on <span class="muted">(optional)</span></label>
+      <input type="date" id="edit-expiry">
+      <p class="field-hint">Leave blank to keep it until you delete it.</p>
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+    <button class="btn btn-primary" type="button" id="btn-save-slide">Save</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="dlg-saying">
+  <div class="modal-head">
+    <h2>Saying of the Week</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+  </div>
+  <div class="modal-body">
+    <p class="modal-sub">The newsletter bot replaces this with each week's saying. You can fix or change it here any time.</p>
+    <div class="field">
+      <label for="saying-quote">Saying</label>
+      <textarea id="saying-quote" autofocus rows="4" placeholder="Physical beauty is the outer beauty, and the beauty of the intellect is inner beauty."></textarea>
+    </div>
+    <div class="field">
+      <label for="saying-attribution">Said by</label>
+      <input type="text" id="saying-attribution" placeholder="Imam Hassan Al Askari (as)">
+    </div>
+    <div class="field">
+      <label for="saying-reference">Source <span class="muted">(optional)</span></label>
+      <input type="text" id="saying-reference" placeholder="Mizan ul Hikmah">
+    </div>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+    <button class="btn btn-primary" type="button" id="btn-save-saying">Save</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="dlg-confirm">
+  <div class="modal-head">
+    <h2 id="confirm-title"></h2>
+  </div>
+  <div class="modal-body"><p class="modal-sub" id="confirm-message" style="margin:0"></p></div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" type="button" id="confirm-cancel" autofocus>Cancel</button>
+    <button class="btn btn-danger" type="button" id="confirm-ok"></button>
+  </div>
+</dialog>
+
+<dialog class="modal modal-media" id="dlg-media" autofocus>
+  <div class="modal-head">
+    <h2 id="modal-title"></h2>
+    <div class="preview-tools">
+      <a class="icon-btn" id="modal-download" href="#" download title="Download" aria-label="Download"><i data-icon="download"></i></a>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+    </div>
+  </div>
+  <div class="modal-media-body" id="modal-media"></div>
+</dialog>
+
+<dialog class="modal modal-preview" id="dlg-preview" autofocus>
+  <div class="modal-head">
+    <h2>Live kiosk</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+  </div>
+  <div class="modal-body">
+    <div class="preview-stage" id="preview-stage-large">
+      <iframe id="preview-frame-large" title="Live kiosk preview, large" tabindex="-1"></iframe>
+    </div>
+  </div>
+</dialog>
+
 <div id="toast-container"></div>
-
-<!-- Media preview modal -->
-<div class="modal-overlay hidden" id="preview-modal">
-  <div class="modal-content">
-    <button class="modal-close" id="modal-close" type="button">✕</button>
-    <div class="modal-media" id="modal-media"></div>
-    <div class="modal-info">
-      <div class="modal-title" id="modal-title"></div>
-      <a class="btn btn-sm" id="modal-download" href="#" download>Download</a>
-    </div>
-  </div>
-</div>
 
 <!-- Firebase (compat SDK) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -289,1589 +556,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <script src="firebase-config.js"></script>
-<script>
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
-
-// The Gemini API key is never stored in this file or anywhere in git — it's
-// read after login from Firestore admin_config/gemini (see loadGeminiApiKey()).
-// The newsletter bot (newsletter-bot/) reads the same document.
-const GEMINI_MODEL = 'gemini-3.6-flash';
-
-document.getElementById('masjid-name-label').textContent = KIOSK_CONFIG.masjidName;
-
-const loginCard = document.getElementById('login-card');
-const adminContent = document.getElementById('admin-content');
-
-/* ============================================================
-   AUTH
-   ============================================================ */
-document.getElementById('login-form').addEventListener('submit', e => {
-  e.preventDefault();
-  const username = document.getElementById('login-username').value.trim().toLowerCase();
-  const password = document.getElementById('login-password').value;
-  const errorBox = document.getElementById('login-error');
-  errorBox.textContent = '';
-
-  if (!username) {
-    errorBox.textContent = 'Enter a username.';
-    return;
-  }
-
-  const email = `${username}@${AUTH_CONFIG.usernameDomain}`;
-  auth.signInWithEmailAndPassword(email, password).catch(err => {
-    errorBox.textContent = err.code === 'auth/invalid-credential' || err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password'
-      ? 'Incorrect username or password.'
-      : err.message;
-  });
-});
-
-document.getElementById('btn-logout').addEventListener('click', () => auth.signOut());
-
-auth.onAuthStateChanged(user => {
-  if (user) {
-    loginCard.classList.add('hidden');
-    adminContent.classList.remove('hidden');
-    loadAdList();
-    loadSaying();
-    loadHubContent();
-    loadProgramsAdmin();
-    loadGeminiApiKey();
-    loadNewsletterBotStatus();
-    loadKioskSettings();
-    // Re-apply the restored tab now that #admin-content is actually visible — if it
-    // was mounted earlier while hidden (display:none), the preview iframe would have
-    // been scaled against a zero-width stage and rendered invisible.
-    switchTab(localStorage.getItem('adminActiveTab') || 'media');
-  } else {
-    loginCard.classList.remove('hidden');
-    adminContent.classList.add('hidden');
-  }
-});
-
-/* ============================================================
-   LIVE KIOSK PREVIEW
-   (declared before TABS — switchTab()'s initial call below can
-   reference mountPreviewFrame() synchronously on the same pass)
-   ============================================================ */
-const KIOSK_PREVIEW_WIDTH = 2160;
-const KIOSK_PREVIEW_HEIGHT = 3840;
-let previewMounted = false;
-
-function mountPreviewFrame() {
-  const frame = document.getElementById('kiosk-preview-frame');
-  if (!previewMounted) {
-    frame.src = 'index.html';
-    previewMounted = true;
-  }
-  updatePreviewScale();
-}
-
-function updatePreviewScale() {
-  const stage = document.getElementById('kiosk-preview-stage');
-  const frame = document.getElementById('kiosk-preview-frame');
-  if (!stage.clientWidth) return; // stage is hidden (e.g. tab not visible yet) — nothing to measure
-  const scale = stage.clientWidth / KIOSK_PREVIEW_WIDTH;
-  frame.style.width = KIOSK_PREVIEW_WIDTH + 'px';
-  frame.style.height = KIOSK_PREVIEW_HEIGHT + 'px';
-  frame.style.transform = `scale(${scale})`;
-}
-
-new ResizeObserver(updatePreviewScale).observe(document.getElementById('kiosk-preview-stage'));
-window.addEventListener('resize', updatePreviewScale);
-
-document.getElementById('btn-preview-refresh').addEventListener('click', () => {
-  const frame = document.getElementById('kiosk-preview-frame');
-  frame.src = 'index.html';
-});
-
-document.getElementById('btn-preview-open').addEventListener('click', () => {
-  window.open('index.html', '_blank');
-});
-
-/* ============================================================
-   TABS
-   ============================================================ */
-const tabButtons = document.querySelectorAll('.admin-tab-btn');
-const tabPanels = document.querySelectorAll('.tab-panel');
-
-function switchTab(name) {
-  tabButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
-  tabPanels.forEach(panel => panel.classList.toggle('hidden', panel.dataset.tabPanel !== name));
-  localStorage.setItem('adminActiveTab', name);
-  if (name === 'preview') mountPreviewFrame();
-}
-
-tabButtons.forEach(btn => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
-switchTab(localStorage.getItem('adminActiveTab') || 'media');
-
-/* ============================================================
-   TOASTS
-   ============================================================ */
-function showToast(msg, type = 'success', action = null) {
-  const container = document.getElementById('toast-container');
-  const toast = document.createElement('div');
-  toast.className = 'toast toast-' + type;
-
-  const text = document.createElement('span');
-  text.textContent = msg;
-  toast.appendChild(text);
-
-  const duration = action ? 5000 : 3000;
-  let dismissed = false;
-  const dismiss = () => {
-    if (dismissed) return;
-    dismissed = true;
-    toast.classList.remove('show');
-    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
-  };
-
-  if (action) {
-    const actionBtn = document.createElement('button');
-    actionBtn.className = 'toast-action';
-    actionBtn.type = 'button';
-    actionBtn.textContent = action.label;
-    actionBtn.addEventListener('click', () => {
-      action.onClick();
-      dismiss();
-    });
-    toast.appendChild(actionBtn);
-  }
-
-  container.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('show'));
-  setTimeout(dismiss, duration);
-}
-
-/* ============================================================
-   PREVIEW MODAL
-   ============================================================ */
-function toDownloadUrl(url) {
-  return url.replace('/upload/', '/upload/fl_attachment/');
-}
-
-function openPreview(ad) {
-  document.getElementById('modal-media').innerHTML = ad.type === 'video'
-    ? `<video src="${ad.url}" controls autoplay></video>`
-    : `<img src="${ad.url}">`;
-  document.getElementById('modal-title').textContent = ad.title || '(untitled)';
-  document.getElementById('modal-download').href = toDownloadUrl(ad.url);
-  document.getElementById('preview-modal').classList.remove('hidden');
-}
-
-function closePreview() {
-  document.getElementById('preview-modal').classList.add('hidden');
-  document.getElementById('modal-media').innerHTML = '';
-}
-
-document.getElementById('modal-close').addEventListener('click', closePreview);
-document.getElementById('preview-modal').addEventListener('click', e => {
-  if (e.target.id === 'preview-modal') closePreview();
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closePreview();
-});
-
-/* ============================================================
-   UPLOAD
-   ============================================================ */
-const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
-
-function formatBytes(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-function validateUploadFile(file) {
-  if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
-    return 'Only image or video files are supported.';
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `File is too large (${formatBytes(file.size)}). Max size is ${formatBytes(MAX_UPLOAD_BYTES)}.`;
-  }
-  return null;
-}
-
-function showUploadError(msg) {
-  const errorBox = document.getElementById('upload-error');
-  if (msg) {
-    errorBox.textContent = msg;
-    errorBox.classList.remove('hidden');
-  } else {
-    errorBox.textContent = '';
-    errorBox.classList.add('hidden');
-  }
-}
-
-function updateUploadPreview(file) {
-  const hint = document.getElementById('upload-dropzone-hint');
-  const preview = document.getElementById('upload-preview');
-  const thumb = document.getElementById('upload-preview-thumb');
-  const nameEl = document.getElementById('upload-preview-name');
-  const metaEl = document.getElementById('upload-preview-meta');
-
-  if (!file) {
-    hint.classList.remove('hidden');
-    preview.classList.add('hidden');
-    thumb.innerHTML = '';
-    showUploadError(null);
-    return;
-  }
-
-  const err = validateUploadFile(file);
-  showUploadError(err);
-
-  const objectUrl = URL.createObjectURL(file);
-  thumb.innerHTML = file.type.startsWith('video')
-    ? `<video src="${objectUrl}" muted></video>`
-    : `<img src="${objectUrl}">`;
-  nameEl.textContent = file.name;
-  metaEl.textContent = `${file.type.startsWith('video') ? 'Video' : 'Image'} · ${formatBytes(file.size)}`;
-  hint.classList.add('hidden');
-  preview.classList.remove('hidden');
-
-  document.getElementById('duration-field').style.display =
-    file.type.startsWith('video') ? 'none' : '';
-}
-
-const dropzone = document.getElementById('upload-dropzone');
-const fileInput = document.getElementById('upload-file');
-
-fileInput.addEventListener('change', () => updateUploadPreview(fileInput.files[0]));
-
-['dragenter', 'dragover'].forEach(evt => {
-  dropzone.addEventListener(evt, e => {
-    e.preventDefault();
-    dropzone.classList.add('drag-over');
-  });
-});
-['dragleave', 'dragend'].forEach(evt => {
-  dropzone.addEventListener(evt, () => dropzone.classList.remove('drag-over'));
-});
-dropzone.addEventListener('drop', e => {
-  e.preventDefault();
-  dropzone.classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
-  fileInput.files = e.dataTransfer.files;
-  updateUploadPreview(file);
-});
-
-document.getElementById('btn-upload').addEventListener('click', () => {
-  const fileInput = document.getElementById('upload-file');
-  const file = fileInput.files[0];
-
-  if (!file) {
-    showToast('Choose a file first.', 'error');
-    return;
-  }
-
-  const validationError = validateUploadFile(file);
-  if (validationError) {
-    showUploadError(validationError);
-    showToast(validationError, 'error');
-    return;
-  }
-
-  const type = file.type.startsWith('video') ? 'video' : 'image';
-  const title = document.getElementById('upload-title').value.trim();
-  const duration = parseInt(document.getElementById('upload-duration').value, 10) || 8;
-  const order = parseInt(document.getElementById('upload-order').value, 10) || 1;
-  const expiryDaysRaw = document.getElementById('upload-expiry-days').value;
-  const expiryDays = expiryDaysRaw ? parseInt(expiryDaysRaw, 10) : null;
-
-  if (CLOUDINARY_CONFIG.cloudName.startsWith('PASTE_')) {
-    showToast('Cloudinary isn\'t set up yet — check firebase-config.js.', 'error');
-    return;
-  }
-
-  const progressWrap = document.getElementById('progress-wrap');
-  const progressFill = document.getElementById('progress-fill');
-  progressWrap.style.display = 'block';
-  document.getElementById('btn-upload').disabled = true;
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('upload_preset', CLOUDINARY_CONFIG.uploadPreset);
-
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', `https://api.cloudinary.com/v1_1/${CLOUDINARY_CONFIG.cloudName}/auto/upload`);
-
-  xhr.upload.addEventListener('progress', e => {
-    if (e.lengthComputable) progressFill.style.width = ((e.loaded / e.total) * 100) + '%';
-  });
-
-  xhr.onload = () => {
-    if (xhr.status < 200 || xhr.status >= 300) {
-      showToast('Upload failed: ' + xhr.responseText, 'error');
-      document.getElementById('btn-upload').disabled = false;
-      return;
-    }
-    const result = JSON.parse(xhr.responseText);
-    const adDoc = {
-      url: result.secure_url,
-      type, title, duration, order,
-      active: true,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    if (expiryDays) {
-      adDoc.expiresAt = firebase.firestore.Timestamp.fromDate(
-        new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000)
-      );
-    }
-    db.collection('ads').add(adDoc).then(() => {
-      showToast('Uploaded! It will show on the kiosk automatically.', 'success');
-      fileInput.value = '';
-      document.getElementById('upload-title').value = '';
-      document.getElementById('upload-expiry-days').value = '';
-      updateUploadPreview(null);
-      progressWrap.style.display = 'none';
-      progressFill.style.width = '0%';
-      document.getElementById('btn-upload').disabled = false;
-    });
-  };
-
-  xhr.onerror = () => {
-    showToast('Upload failed — check your internet connection.', 'error');
-    document.getElementById('btn-upload').disabled = false;
-  };
-
-  xhr.send(formData);
-});
-
-/* ============================================================
-   MEDIA LIST — view, drag-reorder, edit, toggle, delete
-   ============================================================ */
-let currentAdDocs = [];
-let pendingDeleteIds = new Set();
-let mediaSearchQuery = '';
-
-function loadAdList() {
-  document.getElementById('ad-list').innerHTML =
-    '<div class="loading-state"><div class="spinner"></div>Loading media…</div>';
-  db.collection('ads').orderBy('order').onSnapshot(snapshot => {
-    currentAdDocs = [];
-    snapshot.forEach(doc => currentAdDocs.push({ id: doc.id, data: doc.data() }));
-    renderAdList(getFilteredAdDocs());
-  });
-}
-
-function getFilteredAdDocs() {
-  const q = mediaSearchQuery.trim().toLowerCase();
-  return currentAdDocs.filter(item =>
-    !pendingDeleteIds.has(item.id) &&
-    (!q || (item.data.title || '').toLowerCase().includes(q) || (item.data.type || '').toLowerCase().includes(q))
-  );
-}
-
-document.getElementById('media-search').addEventListener('input', e => {
-  mediaSearchQuery = e.target.value;
-  renderAdList(getFilteredAdDocs());
-});
-
-function renderAdList(docs) {
-  const listEl = document.getElementById('ad-list');
-  const isFiltered = mediaSearchQuery.trim() !== '';
-
-  if (docs.length === 0) {
-    listEl.innerHTML = isFiltered
-      ? `<div class="empty-state">
-          <div class="empty-state-icon">🔍</div>
-          <p>No media matches "${mediaSearchQuery.trim()}".</p>
-        </div>`
-      : `<div class="empty-state">
-          <div class="empty-state-icon">🖼️</div>
-          <p>No media yet — upload your first slide above.</p>
-        </div>`;
-    return;
-  }
-  listEl.innerHTML = '';
-
-  docs.forEach(item => {
-    const { id, data: ad } = item;
-    const div = document.createElement('div');
-    div.className = 'ad-list-item';
-    div.dataset.id = id;
-    div.draggable = !isFiltered;
-
-    const thumbInner = ad.type === 'video'
-      ? `<video class="ad-list-thumb" src="${ad.url}" muted></video>`
-      : `<img class="ad-list-thumb" src="${ad.url}">`;
-
-    div.innerHTML = `
-      <div class="drag-handle" title="Drag to reorder">⠿</div>
-      <button type="button" class="ad-list-thumb-btn" data-id="${id}">${thumbInner}</button>
-      <div class="ad-list-info">
-        <div class="fname">${ad.title || '(untitled)'}</div>
-        <div class="meta">${ad.type} · order ${ad.order}${ad.type === 'image' ? ' · ' + ad.duration + 's' : ''}${ad.source === 'newsletter-auto' ? ' · 📧 Newsletter' : ''}${ad.expiresAt ? ' · expires ' + ad.expiresAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}</div>
-      </div>
-      <div class="ad-list-actions">
-        <button class="btn btn-sm btn-secondary btn-edit" data-id="${id}">Edit</button>
-        <a class="btn btn-sm btn-secondary btn-icon" href="${toDownloadUrl(ad.url)}" download title="Download">⬇</a>
-        <label class="toggle-label">
-          <input type="checkbox" ${ad.active ? 'checked' : ''} data-id="${id}" class="toggle-active"> Active
-        </label>
-        <button class="btn btn-sm btn-danger delete-ad" data-id="${id}">Delete</button>
-      </div>
-    `;
-    listEl.appendChild(div);
-  });
-
-  listEl.querySelectorAll('.ad-list-thumb-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const adItem = currentAdDocs.find(d => d.id === btn.dataset.id);
-      if (adItem) openPreview(adItem.data);
-    });
-  });
-
-  listEl.querySelectorAll('.btn-edit').forEach(btn => {
-    btn.addEventListener('click', () => showEditForm(btn.dataset.id));
-  });
-
-  listEl.querySelectorAll('.toggle-active').forEach(box => {
-    box.addEventListener('change', () => {
-      db.collection('ads').doc(box.dataset.id).update({ active: box.checked })
-        .then(() => showToast(box.checked ? 'Media activated.' : 'Media deactivated.', 'success'));
-    });
-  });
-
-  listEl.querySelectorAll('.delete-ad').forEach(btn => {
-    btn.addEventListener('click', () => showDeleteConfirm(btn.dataset.id));
-  });
-
-  if (!isFiltered) attachDragReorder(listEl, '.ad-list-item', reorderAds);
-}
-
-function showDeleteConfirm(id) {
-  const item = document.querySelector(`#ad-list .ad-list-item[data-id="${id}"]`);
-  const actions = item && item.querySelector('.ad-list-actions');
-  if (!actions) return;
-  actions.innerHTML = `
-    <span class="confirm-prompt">Delete this item?</span>
-    <button type="button" class="btn btn-sm btn-danger confirm-delete-yes">Delete</button>
-    <button type="button" class="btn btn-sm btn-secondary confirm-delete-no">Cancel</button>
-  `;
-  actions.querySelector('.confirm-delete-yes').addEventListener('click', () => scheduleAdDelete(id));
-  actions.querySelector('.confirm-delete-no').addEventListener('click', () => renderAdList(getFilteredAdDocs()));
-}
-
-function scheduleAdDelete(id) {
-  pendingDeleteIds.add(id);
-  renderAdList(getFilteredAdDocs());
-  const timeoutId = setTimeout(() => {
-    pendingDeleteIds.delete(id);
-    db.collection('ads').doc(id).delete();
-  }, 5000);
-  showToast('Deleted.', 'success', {
-    label: 'Undo',
-    onClick: () => {
-      clearTimeout(timeoutId);
-      pendingDeleteIds.delete(id);
-      renderAdList(getFilteredAdDocs());
-    }
-  });
-}
-
-/* Generic drag-reorder: owns drag visuals + DOM/order handoff only.
-   `onDrop(srcId, targetId)` decides what reordering means for the caller. */
-let dragSrcId = null;
-
-function makeRowDraggable(item, listEl, onDrop) {
-  item.addEventListener('dragstart', () => {
-    dragSrcId = item.dataset.id;
-    item.classList.add('dragging');
-  });
-  item.addEventListener('dragend', () => {
-    item.classList.remove('dragging');
-    listEl.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
-  });
-  item.addEventListener('dragover', e => {
-    e.preventDefault();
-    if (item.dataset.id !== dragSrcId) item.classList.add('drag-over');
-  });
-  item.addEventListener('dragleave', () => item.classList.remove('drag-over'));
-  item.addEventListener('drop', e => {
-    e.preventDefault();
-    item.classList.remove('drag-over');
-    const targetId = item.dataset.id;
-    if (targetId !== dragSrcId) onDrop(dragSrcId, targetId);
-  });
-}
-
-function attachDragReorder(listEl, itemSelector, onDrop) {
-  listEl.querySelectorAll(itemSelector).forEach(item => makeRowDraggable(item, listEl, onDrop));
-}
-
-function reorderAds(srcId, targetId) {
-  const srcIdx = currentAdDocs.findIndex(d => d.id === srcId);
-  const targetIdx = currentAdDocs.findIndex(d => d.id === targetId);
-  if (srcIdx === -1 || targetIdx === -1) return;
-
-  const reordered = currentAdDocs.slice();
-  const [moved] = reordered.splice(srcIdx, 1);
-  reordered.splice(targetIdx, 0, moved);
-
-  const batch = db.batch();
-  reordered.forEach((item, i) => {
-    const newOrder = i + 1;
-    if (item.data.order !== newOrder) {
-      batch.update(db.collection('ads').doc(item.id), { order: newOrder });
-    }
-  });
-  batch.commit().then(() => showToast('Reordered.', 'success'));
-}
-
-function showEditForm(id) {
-  const ad = currentAdDocs.find(d => d.id === id).data;
-  const item = document.querySelector(`#ad-list .ad-list-item[data-id="${id}"]`);
-  item.innerHTML = `
-    <div class="inline-edit-form">
-      <div class="admin-field">
-        <label>Title</label>
-        <input type="text" class="edit-title" value="${ad.title || ''}">
-      </div>
-      ${ad.type === 'image' ? `
-      <div class="admin-field">
-        <label>Duration (seconds)</label>
-        <input type="number" class="edit-duration" value="${ad.duration || 8}" min="2">
-      </div>` : ''}
-      <div class="admin-field">
-        <label>Order</label>
-        <input type="number" class="edit-order" value="${ad.order || 1}">
-      </div>
-      <div class="admin-field">
-        <label>Expires on (leave blank to keep indefinitely)</label>
-        <input type="date" class="edit-expiry" value="${ad.expiresAt ? toDateInputValue(ad.expiresAt.toDate()) : ''}">
-      </div>
-      <div class="inline-edit-actions">
-        <button class="btn btn-sm save-edit">Save</button>
-        <button class="btn btn-sm btn-secondary cancel-edit">Cancel</button>
-      </div>
-    </div>
-  `;
-  item.querySelector('.save-edit').addEventListener('click', () => {
-    const updates = {
-      title: item.querySelector('.edit-title').value.trim(),
-      order: parseInt(item.querySelector('.edit-order').value, 10) || 1,
-    };
-    if (ad.type === 'image') updates.duration = parseInt(item.querySelector('.edit-duration').value, 10) || 8;
-    // Only written when changed, so saving a title edit keeps the exact
-    // expiry time the newsletter bot set.
-    const expiryValue = item.querySelector('.edit-expiry').value;
-    const oldExpiryValue = ad.expiresAt ? toDateInputValue(ad.expiresAt.toDate()) : '';
-    if (expiryValue !== oldExpiryValue) {
-      const [y, m, d] = expiryValue.split('-').map(Number);
-      updates.expiresAt = expiryValue
-        ? firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59))
-        : firebase.firestore.FieldValue.delete();
-    }
-    db.collection('ads').doc(id).update(updates)
-      .then(() => showToast('Saved!', 'success'));
-  });
-  item.querySelector('.cancel-edit').addEventListener('click', () => renderAdList(getFilteredAdDocs()));
-}
-
-// Local YYYY-MM-DD for <input type="date">.
-function toDateInputValue(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-
-/* ============================================================
-   DIRTY-STATE TRACKING (Content tab — protects against silent data loss)
-   ============================================================ */
-let dirtySections = new Set();
-
-function markSectionDirty(section) {
-  dirtySections.add(section);
-  const badge = document.getElementById(section + '-dirty');
-  if (badge) badge.classList.remove('hidden');
-}
-
-function clearSectionDirty(section) {
-  dirtySections.delete(section);
-  const badge = document.getElementById(section + '-dirty');
-  if (badge) badge.classList.add('hidden');
-}
-
-window.addEventListener('beforeunload', e => {
-  if (dirtySections.size > 0) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
-
-/* ============================================================
-   HUB CONTENT EDITOR
-   ============================================================ */
-function tryParseDateToISO(str) {
-  if (!str) return null;
-  const d = new Date(str);
-  if (isNaN(d.getTime())) return null;
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function formatDateForDisplay(isoStr) {
-  const [y, m, d] = isoStr.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function loadHubContent() {
-  const listLoadingHtml = '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
-  document.getElementById('announcements-list').innerHTML = listLoadingHtml;
-
-  db.collection('hub_content').doc('announcements').get().then(doc => {
-    renderHubList('announcements-list', doc.exists ? (doc.data().items || []) : [], 'announcements');
-  });
-}
-
-function renderHubList(containerId, items, sectionName) {
-  const container = document.getElementById(containerId);
-  container.innerHTML = '';
-  if (items.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📋</div>
-        <p>No items yet — add one below.</p>
-      </div>`;
-    return;
-  }
-  items.forEach(item => addHubItemRow(container, item.date || '', item.text || '', sectionName, item));
-}
-
-let hubRowCounter = 0;
-
-function hubReorderHandler(containerId, sectionName) {
-  return (srcId, targetId) => {
-    const container = document.getElementById(containerId);
-    const srcRow = container.querySelector(`.hub-item-row[data-id="${srcId}"]`);
-    const targetRow = container.querySelector(`.hub-item-row[data-id="${targetId}"]`);
-    if (!srcRow || !targetRow) return;
-    container.insertBefore(srcRow, targetRow);
-    markSectionDirty(sectionName);
-  };
-}
-
-// meta carries the newsletter bot's source/addedAt through an admin
-// save, so its 30-day auto-prune still recognizes items it added.
-function addHubItemRow(container, date, text, sectionName, meta = {}) {
-  const empty = container.querySelector('.empty-state');
-  if (empty) empty.remove();
-
-  const rowId = 'hubrow-' + (++hubRowCounter);
-  const isoDate = tryParseDateToISO(date);
-  const safeDate = date.replace(/"/g, '&quot;');
-  const safeText = text.replace(/"/g, '&quot;');
-
-  const row = document.createElement('div');
-  row.className = 'hub-item-row';
-  row.dataset.id = rowId;
-  if (meta.source) row.dataset.source = meta.source;
-  if (meta.addedAt) row.dataset.addedAt = meta.addedAt;
-  row.draggable = true;
-  row.innerHTML = `
-    <div class="drag-handle" title="Drag to reorder">⠿</div>
-    <input type="date" class="hub-item-date" value="${isoDate || ''}" data-original="${safeDate}" title="${(!isoDate && date) ? 'Originally: ' + safeDate : ''}">
-    <input type="text" class="hub-item-text" placeholder="Description" value="${safeText}">
-    <button type="button" class="btn btn-sm btn-danger remove-hub-item">✕</button>
-    ${(!isoDate && date) ? `<div class="hub-item-date-hint field-hint">currently: ${date}</div>` : ''}
-  `;
-  row.querySelector('.remove-hub-item').addEventListener('click', () => {
-    row.remove();
-    markSectionDirty(sectionName);
-    if (!container.querySelector('.hub-item-row')) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-state-icon">📋</div>
-          <p>No items yet — add one below.</p>
-        </div>`;
-    }
-  });
-  row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => markSectionDirty(sectionName)));
-  container.appendChild(row);
-  makeRowDraggable(row, container, hubReorderHandler(container.id, sectionName));
-}
-
-function getHubListItems(containerId) {
-  return Array.from(document.querySelectorAll(`#${containerId} .hub-item-row`))
-    .map(row => {
-      const dateInput = row.querySelector('.hub-item-date');
-      const date = dateInput.value ? formatDateForDisplay(dateInput.value) : (dateInput.dataset.original || '');
-      const item = {
-        date,
-        text: row.querySelector('.hub-item-text').value.trim(),
-      };
-      if (row.dataset.source) item.source = row.dataset.source;
-      if (row.dataset.addedAt) item.addedAt = row.dataset.addedAt;
-      return item;
-    })
-    .filter(item => item.text);
-}
-
-function saveHubList(docId, containerId, sectionName, btn) {
-  const items = getHubListItems(containerId);
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-  db.collection('hub_content').doc(docId).set({ items })
-    .then(() => {
-      showToast('Saved!', 'success');
-      clearSectionDirty(sectionName);
-    })
-    .catch(() => showToast('Error saving.', 'error'))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    });
-}
-
-/* ============================================================
-   PROGRAMS CALENDAR EDITOR
-   Manual add/correct UI for the `programs` collection (one doc
-   per ISO date) that also backs the kiosk's Events calendar.
-   Bot-written days are tagged source:"whatsapp-auto"; saving here
-   always stamps source:"manual" and fully overwrites that day.
-   ============================================================ */
-let currentProgramDate = null;
-let programItemCounter = 0;
-let programsUpcomingUnsub = null;
-
-function toIsoDateLocalAdmin(d) {
-  const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function formatProgramDateLabel(iso) {
-  const [y, m, d] = iso.split('-').map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
-}
-
-function loadProgramsAdmin() {
-  document.getElementById('programs-upcoming-list').innerHTML =
-    '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
-  const todayIso = toIsoDateLocalAdmin(new Date());
-  if (programsUpcomingUnsub) programsUpcomingUnsub();
-  programsUpcomingUnsub = db.collection('programs')
-    .where('date', '>=', todayIso)
-    .orderBy('date')
-    .limit(30)
-    .onSnapshot(snapshot => {
-      renderUpcomingProgramsList(snapshot.docs);
-    }, () => {
-      document.getElementById('programs-upcoming-list').innerHTML = '<p class="field-hint">Could not load programs.</p>';
-    });
-}
-
-function renderUpcomingProgramsList(docs) {
-  const container = document.getElementById('programs-upcoming-list');
-  if (docs.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-state-icon">📅</div>
-        <p>No upcoming programs posted yet.</p>
-      </div>`;
-    return;
-  }
-  container.innerHTML = docs.map(doc => {
-    const data = doc.data();
-    const isAuto = data.source === 'whatsapp-auto';
-    const itemCount = (data.items || []).length;
-    const summary = data.specialOccasion || `${itemCount} item${itemCount === 1 ? '' : 's'}`;
-    return `
-      <div class="program-upcoming-row">
-        <div class="program-upcoming-info">
-          <div class="program-upcoming-date">${formatProgramDateLabel(doc.id)}</div>
-          <div class="program-upcoming-summary">${summary}</div>
-        </div>
-        <span class="source-badge ${isAuto ? 'source-auto' : 'source-manual'}">${isAuto ? 'Auto' : 'Manual'}</span>
-        <button type="button" class="btn btn-sm btn-secondary program-upcoming-edit" data-date="${doc.id}">Edit</button>
-      </div>
-    `;
-  }).join('');
-  container.querySelectorAll('.program-upcoming-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('program-day-picker').value = btn.dataset.date;
-      loadProgramDayIntoEditor(btn.dataset.date);
-    });
-  });
-}
-
-function loadProgramDayIntoEditor(dateISO) {
-  if (!dateISO) { showToast('Pick a date first.', 'error'); return; }
-  currentProgramDate = dateISO;
-  document.getElementById('program-day-editor').classList.remove('hidden');
-  document.getElementById('program-items-list').innerHTML =
-    '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
-
-  db.collection('programs').doc(dateISO).get().then(doc => {
-    const data = doc.exists ? doc.data() : {};
-    document.getElementById('program-occasion').value = data.specialOccasion || '';
-    document.getElementById('program-hijri').value = data.hijriSubtitle || '';
-
-    const list = document.getElementById('program-items-list');
-    list.innerHTML = '';
-    const items = data.items || [];
-    if (items.length === 0) {
-      addProgramItemRow(list, {});
-    } else {
-      items.forEach(item => addProgramItemRow(list, item));
-    }
-    clearSectionDirty('program-day');
-  }).catch(err => {
-    document.getElementById('program-items-list').innerHTML =
-      `<p class="field-hint">Could not load this day: ${err.message}</p>`;
-    showToast('Error loading day.', 'error');
-  });
-}
-
-function programReorderHandler() {
-  return (srcId, targetId) => {
-    const container = document.getElementById('program-items-list');
-    const srcRow = container.querySelector(`.program-item-row[data-id="${srcId}"]`);
-    const targetRow = container.querySelector(`.program-item-row[data-id="${targetId}"]`);
-    if (!srcRow || !targetRow) return;
-    container.insertBefore(srcRow, targetRow);
-    markSectionDirty('program-day');
-  };
-}
-
-function addProgramItemRow(container, item) {
-  const rowId = 'progrow-' + (++programItemCounter);
-  const safe = s => (s || '').replace(/"/g, '&quot;');
-
-  const row = document.createElement('div');
-  row.className = 'program-item-row';
-  row.dataset.id = rowId;
-  row.draggable = true;
-  row.innerHTML = `
-    <div class="drag-handle" title="Drag to reorder">⠿</div>
-    <input type="time" class="program-item-time" value="${safe(item.time)}">
-    <input type="text" class="program-item-label" placeholder="Event label" value="${safe(item.label)}">
-    <input type="text" class="program-item-speaker" placeholder="Speaker (optional)" value="${safe(item.speaker)}">
-    <input type="text" class="program-item-note" placeholder="Note (optional)" value="${safe(item.note)}">
-    <button type="button" class="btn btn-sm btn-danger remove-program-item">✕</button>
-  `;
-  row.querySelector('.remove-program-item').addEventListener('click', () => {
-    row.remove();
-    markSectionDirty('program-day');
-  });
-  row.querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => markSectionDirty('program-day')));
-  container.appendChild(row);
-  makeRowDraggable(row, container, programReorderHandler());
-}
-
-function getProgramItems() {
-  const rows = Array.from(document.querySelectorAll('#program-items-list .program-item-row'))
-    .map(row => ({
-      time: row.querySelector('.program-item-time').value,
-      label: row.querySelector('.program-item-label').value.trim(),
-      speaker: row.querySelector('.program-item-speaker').value.trim(),
-      note: row.querySelector('.program-item-note').value.trim(),
-    }));
-  // A row with only one of time/label filled in is a mistake, not an empty
-  // row to discard — surface it instead of silently saving an incomplete day.
-  const items = rows.filter(item => item.time && item.label);
-  const incompleteCount = rows.filter(item => (item.time || item.label) && !(item.time && item.label)).length;
-  items.sort((a, b) => a.time.localeCompare(b.time));
-  return { items, incompleteCount };
-}
-
-function saveProgramDay() {
-  if (!currentProgramDate) { showToast('Pick a date first.', 'error'); return; }
-  const { items, incompleteCount } = getProgramItems();
-  if (incompleteCount > 0) {
-    showToast(
-      `${incompleteCount} item${incompleteCount === 1 ? '' : 's'} missing a time or label — fill in both or remove the row before saving.`,
-      'error'
-    );
-    return;
-  }
-  const btn = document.getElementById('btn-save-program-day');
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Saving…';
-
-  const docRef = db.collection('programs').doc(currentProgramDate);
-  docRef.get()
-    .then(doc => {
-      const createdAt = (doc.exists && doc.data().createdAt) ? doc.data().createdAt : firebase.firestore.FieldValue.serverTimestamp();
-      return docRef.set({
-        date: currentProgramDate,
-        specialOccasion: document.getElementById('program-occasion').value.trim() || null,
-        hijriSubtitle: document.getElementById('program-hijri').value.trim() || null,
-        items,
-        source: 'manual',
-        createdAt,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-        rawMessageId: null
-      });
-    })
-    .then(() => {
-      showToast('Program day saved!', 'success');
-      clearSectionDirty('program-day');
-    })
-    .catch(() => showToast('Error saving.', 'error'))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    });
-}
-
-/* ============================================================
-   PASTE FROM WHATSAPP — parses the mosque's weekly announcement
-   text with Gemini, previews the resulting days, and lets the
-   admin either publish everything at once or review/edit a
-   specific day first (via the single-day editor above).
-   ============================================================ */
-const PROGRAM_PARSE_SYSTEM_PROMPT = `You are classifying and extracting data from WhatsApp messages posted by a mosque (Masjid Al Hayy) to its community announcements group. This group posts two different kinds of messages that need different handling, plus occasional unrelated chatter — figure out which one this message is.
-
-=== TYPE 1: Weekly programs schedule — messageType: "program" ===
-Looks like this (real example):
-
-Salaamun Alaykum,
-
-Upcoming Programs at Masjid Al Hayy
-
-Thursday, September 17th / 6th Night of Rabi al-Akhir
-- 1:22 PM - Zohrain Salaat
-- 7:42 PM - Maghribain Salaat
-- 8:20 PM - Dua Kumayl - Dr. Syed Askari Hasan
-
-Monday, September 21st / 10th Night of Rabi al-Akhir
-Wiladat Imam Hassan Al Askari (as)
-- 6:07 AM - Fajr Salaat (6:30 AM Jamaat)
-- 8:10 PM - Hadith e Kisa - Ammar Ladak
-
-Each day block starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>",
-is sometimes followed by a line naming a special occasion, then a bulleted list of "<time> - <event
-label>" lines. If this is what you're looking at, set messageType: "program" and fill the days array —
-see the item-extraction rules below.
-
-=== TYPE 2: General community announcement — messageType: "announcement" ===
-Looks like this (real example):
-
-Salaamun Alaykum,
-
-We wish to inform the community that Sunday, September 13th will be the first day of the Month of Rabi
-al-Akhar 1448 A.H.
-
-This determination is based on the fact there were no verified sightings of the crescent moon on the
-evening of Friday, September 11th.
-
-We ask Allah, the Most High, for success in performing good deeds during this blessed month and to
-hasten the reappearance of Our Master, Imam Mahdi (atfs).
-
-Important Dates of the Month:
-10th Rabi al-Akhar (September 22) – Wiladat of Imam Hassan al-Askari (as)
-
-This kind is prose, not a bulleted schedule — moon-sighting declarations, community notices, condolences,
-general news, etc. If this is what you're looking at, set messageType: "announcement" and fill:
-- announcementMonthName / announcementDayNumber: the single most important date the announcement is
-  centered on (e.g. the new month's start date above). If multiple dates are mentioned, pick the primary
-  one the announcement is actually about. If no specific date is central to the announcement, leave
-  announcementMonthName as an empty string and announcementDayNumber as 0.
-- announcementText: a clear, concise 1-3 sentence summary for a kiosk display — capture the key fact and
-  any critical date, but it does not need to be verbatim.
-
-=== TYPE 3: Neither — messageType: "other" ===
-Casual chat, a reply, a one-off notice that doesn't fit either pattern above, a flyer caption, etc. Set
-messageType: "other" and leave days empty, announcementMonthName as an empty string, announcementDayNumber
-as 0, and announcementText as an empty string. Do not guess or force-fit unrelated text into either schema.
-
---- Program item extraction rules (only relevant when messageType is "program") ---
-IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer
-Times display, so do NOT include a bulleted line that is only a routine obligatory prayer announcement
-(Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat), even if it has
-a jamaat-time note in parentheses like "(6:30 AM Jamaat)". EXCEPTION: always KEEP the Friday Jumu'ah
-Salaat line (any spelling, e.g. Jummah, Juma, Jumu'ah) — it is a weekly congregational event the masjid
-wants on the calendar. Apart from Jumu'ah, only include lines that name something beyond
-the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, or other named activity.
-If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah,
-Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure
-routine-prayer lines, a day has no items left AND no special occasion, omit that day from the days array
-entirely — a day with nothing but routine prayers isn't worth a calendar entry. But if the day still has a
-named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items
-list, since the occasion itself is worth showing.
-
-For each day found:
-- monthName: full month name (e.g. "September")
-- dayNumber: the day of month as an integer (e.g. 17)
-- hijriSubtitle: the "Nth Night of Hijri-month" text if present, else an empty string
-- specialOccasion: the special occasion line if present, else an empty string
-- items: each qualifying bulleted line (per the routine-prayer rule above), with:
-  - time24: the time converted to 24-hour "HH:MM" (e.g. "1:22 PM" -> "13:22")
-  - label: the event name, with any trailing "- Speaker Name" and any parenthetical removed
-  - speaker: the trailing "- Name" if present, else an empty string
-  - note: the parenthetical content if present (without the parentheses), else an empty string`;
-
-const PROGRAM_PARSE_SCHEMA = {
-  type: 'OBJECT',
-  properties: {
-    messageType: { type: 'STRING' },
-    days: {
-      type: 'ARRAY',
-      items: {
-        type: 'OBJECT',
-        properties: {
-          monthName: { type: 'STRING' },
-          dayNumber: { type: 'INTEGER' },
-          hijriSubtitle: { type: 'STRING' },
-          specialOccasion: { type: 'STRING' },
-          items: {
-            type: 'ARRAY',
-            items: {
-              type: 'OBJECT',
-              properties: {
-                time24: { type: 'STRING' },
-                label: { type: 'STRING' },
-                speaker: { type: 'STRING' },
-                note: { type: 'STRING' }
-              },
-              required: ['time24', 'label', 'speaker', 'note']
-            }
-          }
-        },
-        required: ['monthName', 'dayNumber', 'hijriSubtitle', 'specialOccasion', 'items']
-      }
-    },
-    announcementMonthName: { type: 'STRING' },
-    announcementDayNumber: { type: 'INTEGER' },
-    announcementText: { type: 'STRING' }
-  },
-  required: ['messageType', 'days', 'announcementMonthName', 'announcementDayNumber', 'announcementText']
-};
-
-const PROGRAM_MONTH_NAMES = ['january', 'february', 'march', 'april', 'may', 'june',
-  'july', 'august', 'september', 'october', 'november', 'december'];
-
-// Same Dec -> Jan rollover logic as the (unused, kept for reference)
-// whatsapp-bot/src/dateResolution.js — duplicated here since this is a
-// no-build-process, browser-only page with no shared module system.
-function resolveProgramYear(monthName, dayNumber, referenceDate) {
-  const refYear = referenceDate.getFullYear();
-  const refMonthIdx = referenceDate.getMonth();
-  const eventMonthIdx = PROGRAM_MONTH_NAMES.indexOf(String(monthName || '').toLowerCase());
-  let year = refYear;
-  if (eventMonthIdx !== -1 && eventMonthIdx < refMonthIdx - 1) year = refYear + 1;
-  const mm = String((eventMonthIdx === -1 ? refMonthIdx : eventMonthIdx) + 1).padStart(2, '0');
-  const dd = String(dayNumber).padStart(2, '0');
-  return `${year}-${mm}-${dd}`;
-}
-
-// Stored in Firestore (admin_config/gemini), set once and no longer exposed
-// via any UI field — read silently on load. To change/rotate the key later,
-// edit the admin_config/gemini document's apiKey field directly in the
-// Firebase Console (Firestore Database -> Data).
-let currentGeminiApiKey = '';
-
-function getGeminiApiKey() {
-  return currentGeminiApiKey;
-}
-
-function loadGeminiApiKey() {
-  db.collection('admin_config').doc('gemini').get().then(doc => {
-    currentGeminiApiKey = (doc.exists && doc.data().apiKey) || '';
-  }).catch(() => {
-    // Likely means the admin_config Firestore rule isn't set up — parsing
-    // will surface a clear "no API key" error if this ends up empty.
-  });
-}
-
-// Heartbeat written by newsletter-bot/Code.gs on every run.
-function loadNewsletterBotStatus() {
-  const el = document.getElementById('newsletter-bot-status');
-  db.collection('admin_config').doc('newsletter_status').get().then(doc => {
-    if (!doc.exists) {
-      el.textContent = 'Newsletter bot: not set up yet (see newsletter-bot/README.md).';
-      return;
-    }
-    const s = doc.data();
-    const fmt = ts => ts && ts.toDate ? ts.toDate().toLocaleString() : 'never';
-    let text = `Newsletter bot: last checked ${fmt(s.lastRunAt)}`;
-    if (s.lastProcessedSubject) {
-      text += ` · last published "${s.lastProcessedSubject}" on ${fmt(s.lastProcessedAt)}`;
-      if (s.lastSummary) text += ` (${s.lastSummary})`;
-    }
-    if (s.lastError) text += ` · last error: ${s.lastError}`;
-    el.textContent = text;
-  }).catch(() => {
-    // Most likely the admin_config rule only covers the gemini doc.
-  });
-}
-
-const GEMINI_MAX_ATTEMPTS = 4;
-
-// Tried in order when the main model is overloaded (503) or out of
-// free-tier quota (429, counted per model). Picked from the models this
-// API key can actually call, same rules as pickFallbackModels_() in
-// newsletter-bot/Code.gs, so renamed/retired models can't break it.
-const GEMINI_FALLBACK_COUNT = 3;
-const GEMINI_FALLBACK_MAX_ATTEMPTS = 2;
-let geminiFallbackModels = null;
-
-async function getGeminiFallbackModels(apiKey) {
-  if (geminiFallbackModels) return geminiFallbackModels;
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${apiKey}`);
-    if (!res.ok) return [];
-    const names = ((await res.json()).models || [])
-      .filter(m => (m.supportedGenerationMethods || []).includes('generateContent'))
-      .map(m => m.name.replace('models/', ''));
-    const version = n => parseFloat((n.match(/gemini-(\d+(?:\.\d+)?)/) || [])[1] || '0');
-    const isLite = n => /lite/.test(n) ? 1 : 0;
-    const isPreview = n => /preview|exp/.test(n) ? 1 : 0;
-    const isNewer = n => version(n) > version(GEMINI_MODEL) ? 1 : 0;
-    geminiFallbackModels = names
-      .filter(n => n !== GEMINI_MODEL && /^gemini-.*flash/.test(n) && !/image|tts|audio|live|embed|thinking/.test(n))
-      .sort((a, b) => isNewer(a) - isNewer(b) || version(b) - version(a) || isPreview(a) - isPreview(b) || isLite(a) - isLite(b) || a.localeCompare(b))
-      .slice(0, GEMINI_FALLBACK_COUNT);
-    return geminiFallbackModels;
-  } catch (err) {
-    return [];
-  }
-}
-
-// Gemini's free tier gets deprioritized under high demand and can return
-// several 503s in a row (observed a real streak of 3 straight 503s taking
-// ~80s total during testing) — retry the main model with growing delays,
-// then fall back to lighter models instead of surfacing that as a failure
-// the admin has to notice and manually redo.
-async function callGeminiParse(text) {
-  const apiKey = getGeminiApiKey();
-  if (!apiKey) {
-    throw new Error('No Gemini API key found — check the admin_config/gemini document in Firestore.');
-  }
-  const status = document.getElementById('program-parse-status');
-  const setStatus = msg => { if (status) status.textContent = msg; };
-  const body = JSON.stringify({
-    system_instruction: { parts: [{ text: PROGRAM_PARSE_SYSTEM_PROMPT }] },
-    contents: [{ parts: [{ text }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: PROGRAM_PARSE_SCHEMA
-    }
-  });
-
-  let models = [GEMINI_MODEL];
-  let lastProblem = '';
-  for (let i = 0; i < models.length; i++) {
-    const model = models[i];
-    const maxAttempts = i === 0 ? GEMINI_MAX_ATTEMPTS : GEMINI_FALLBACK_MAX_ATTEMPTS;
-    if (i > 0) setStatus(`Main AI model is busy — trying a lighter one (${model})…`);
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const outText = data.candidates && data.candidates[0] && data.candidates[0].content.parts[0].text;
-        if (!outText) throw new Error('No response from Gemini.');
-        return JSON.parse(outText);
-      }
-      // 503 = temporarily overloaded, worth retrying. 429 = this model's
-      // quota is used up and retrying won't help, but the free-tier quota
-      // is per model, so a fallback model may still have some left.
-      if (res.status === 503) {
-        lastProblem = 'busy';
-        if (attempt < maxAttempts) {
-          setStatus(`Gemini is busy — retrying (${attempt}/${maxAttempts - 1})… this can take a minute during high demand.`);
-          await new Promise(resolve => setTimeout(resolve, Math.min(attempt * 2000, 10000)));
-          continue;
-        }
-        break;
-      }
-      if (res.status === 429) { lastProblem = 'quota'; break; }
-      if (res.status === 404) break;
-      const errText = await res.text();
-      throw new Error(`Gemini API error (${model}, ${res.status}): ${errText.slice(0, 200)}`);
-    }
-    // Only looked up once the main model has failed, so the normal path
-    // costs no extra request.
-    if (i === 0) models = models.concat(await getGeminiFallbackModels(apiKey));
-  }
-
-  if (lastProblem === 'quota') {
-    throw new Error("Gemini's free-tier quota is used up for now — this isn't a bug, it just needs time to reset (usually within a day). Try again later.");
-  }
-  throw new Error("Every Gemini model is busy right now — this is on Google's side. Try again in a few minutes.");
-}
-
-let lastParsedDays = [];
-
-async function parseWhatsAppPaste() {
-  const text = document.getElementById('program-paste-input').value.trim();
-  if (!text) { showToast('Paste some text first.', 'error'); return; }
-
-  const btn = document.getElementById('btn-parse-paste');
-  const status = document.getElementById('program-parse-status');
-  btn.disabled = true;
-  status.textContent = 'Parsing with AI…';
-  document.getElementById('program-parse-preview').innerHTML = '';
-
-  try {
-    const result = await callGeminiParse(text);
-    if (result.messageType === 'program' && result.days && result.days.length > 0) {
-      renderParsePreview(result.days);
-    } else if (result.messageType === 'announcement') {
-      handleParsedAnnouncement(result);
-    } else {
-      status.textContent = "This doesn't look like a programs schedule or a general announcement — nothing to publish.";
-    }
-  } catch (err) {
-    status.textContent = '';
-    showToast('Parse failed: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-  }
-}
-
-// General (non-schedule) announcements don't get their own publish path —
-// they're added as a new row in the existing Announcements editor further
-// up the Content tab, reusing its normal add/edit/Save flow rather than a
-// separate write path with different semantics.
-function handleParsedAnnouncement(result) {
-  let dateLabel = '';
-  if (result.announcementMonthName && result.announcementDayNumber) {
-    const isoDate = resolveProgramYear(result.announcementMonthName, result.announcementDayNumber, new Date());
-    dateLabel = formatDateForDisplay(isoDate);
-  }
-
-  const list = document.getElementById('announcements-list');
-  addHubItemRow(list, dateLabel, result.announcementText || '', 'announcements');
-  markSectionDirty('announcements');
-
-  document.getElementById('program-parse-status').textContent =
-    'Added to the Announcements list below — review and click Save there.';
-  document.getElementById('program-parse-preview').innerHTML = '';
-  document.getElementById('program-paste-input').value = '';
-  list.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function renderParsePreview(rawDays) {
-  const referenceDate = new Date();
-  lastParsedDays = rawDays.map(day => {
-    const isoDate = resolveProgramYear(day.monthName, day.dayNumber, referenceDate);
-    const items = (day.items || [])
-      .map(item => ({
-        time: item.time24 || '',
-        label: item.label || '',
-        speaker: item.speaker || '',
-        note: item.note || ''
-      }))
-      .filter(item => item.time && item.label)
-      .sort((a, b) => a.time.localeCompare(b.time));
-    return {
-      isoDate,
-      hijriSubtitle: day.hijriSubtitle || null,
-      specialOccasion: day.specialOccasion || null,
-      items
-    };
-  })
-  // Safety net alongside the prompt instructions: drop a day entirely if
-  // it has nothing worth showing (no items and no special occasion) — e.g.
-  // if the AI ever still lets a pure-routine-prayer day through.
-  .filter(day => day.items.length > 0 || day.specialOccasion);
-
-  if (lastParsedDays.length === 0) {
-    document.getElementById('program-parse-status').textContent =
-      'Only routine prayer times found — nothing worth adding to the calendar.';
-    document.getElementById('program-parse-preview').innerHTML = '';
-    return;
-  }
-
-  document.getElementById('program-parse-status').textContent =
-    `Parsed ${lastParsedDays.length} day(s). Review below, then publish.`;
-
-  const container = document.getElementById('program-parse-preview');
-  container.innerHTML = `
-    <div class="parse-preview-list">
-      ${lastParsedDays.map((day, i) => `
-        <div class="parse-preview-card">
-          <div class="parse-preview-info">
-            <div class="parse-preview-date">${formatProgramDateLabel(day.isoDate)}</div>
-            ${day.specialOccasion ? `<div class="parse-preview-occasion">${day.specialOccasion}</div>` : ''}
-            <div class="parse-preview-count">${day.items.length} item${day.items.length === 1 ? '' : 's'}</div>
-          </div>
-          <button type="button" class="btn btn-sm btn-secondary parse-preview-edit" data-index="${i}">Review / Edit</button>
-        </div>
-      `).join('')}
-    </div>
-    <div class="program-day-actions">
-      <button type="button" class="btn btn-sm" id="btn-publish-all-parsed">Publish All ${lastParsedDays.length} Day(s)</button>
-    </div>
-  `;
-
-  container.querySelectorAll('.parse-preview-edit').forEach(btn => {
-    btn.addEventListener('click', () => {
-      loadParsedDayIntoEditor(lastParsedDays[parseInt(btn.dataset.index, 10)]);
-    });
-  });
-  document.getElementById('btn-publish-all-parsed').addEventListener('click', publishAllParsedDays);
-}
-
-// Pre-fills the single-day editor above with parsed-but-unsaved data, so
-// the admin can tweak it and use the normal Save Day button (with its
-// existing incomplete-row validation) rather than a separate save path.
-function loadParsedDayIntoEditor(day) {
-  currentProgramDate = day.isoDate;
-  document.getElementById('program-day-picker').value = day.isoDate;
-  document.getElementById('program-day-editor').classList.remove('hidden');
-  document.getElementById('program-occasion').value = day.specialOccasion || '';
-  document.getElementById('program-hijri').value = day.hijriSubtitle || '';
-
-  const list = document.getElementById('program-items-list');
-  list.innerHTML = '';
-  if (day.items.length === 0) {
-    addProgramItemRow(list, {});
-  } else {
-    day.items.forEach(item => addProgramItemRow(list, item));
-  }
-  markSectionDirty('program-day');
-  document.getElementById('program-day-editor').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function publishAllParsedDays() {
-  if (lastParsedDays.length === 0) return;
-  const btn = document.getElementById('btn-publish-all-parsed');
-  const originalLabel = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = 'Publishing…';
-
-  const batch = db.batch();
-  const timestamp = firebase.firestore.FieldValue.serverTimestamp();
-  lastParsedDays.forEach(day => {
-    batch.set(db.collection('programs').doc(day.isoDate), {
-      date: day.isoDate,
-      hijriSubtitle: day.hijriSubtitle,
-      specialOccasion: day.specialOccasion,
-      items: day.items,
-      source: 'manual',
-      createdAt: timestamp,
-      updatedAt: timestamp,
-      rawMessageId: null
-    });
-  });
-
-  batch.commit()
-    .then(() => {
-      showToast(`Published ${lastParsedDays.length} day(s)!`, 'success');
-      document.getElementById('program-paste-input').value = '';
-      document.getElementById('program-parse-preview').innerHTML = '';
-      document.getElementById('program-parse-status').textContent = '';
-      lastParsedDays = [];
-    })
-    .catch(err => showToast('Error publishing: ' + err.message, 'error'))
-    .finally(() => {
-      btn.disabled = false;
-      btn.textContent = originalLabel;
-    });
-}
-
-document.getElementById('btn-parse-paste').addEventListener('click', parseWhatsAppPaste);
-
-function scheduleProgramDayDelete(dateISO) {
-  document.getElementById('program-day-editor').classList.add('hidden');
-  clearSectionDirty('program-day');
-  currentProgramDate = null;
-  document.getElementById('program-day-picker').value = '';
-
-  const timeoutId = setTimeout(() => {
-    db.collection('programs').doc(dateISO).delete();
-  }, 5000);
-
-  showToast('Day deleted.', 'success', {
-    label: 'Undo',
-    onClick: () => {
-      clearTimeout(timeoutId);
-      document.getElementById('program-day-picker').value = dateISO;
-      loadProgramDayIntoEditor(dateISO);
-    }
-  });
-}
-
-document.getElementById('btn-load-program-day').addEventListener('click', () => {
-  loadProgramDayIntoEditor(document.getElementById('program-day-picker').value);
-});
-document.getElementById('btn-add-program-item').addEventListener('click', () => {
-  addProgramItemRow(document.getElementById('program-items-list'), {});
-  markSectionDirty('program-day');
-});
-document.getElementById('btn-save-program-day').addEventListener('click', saveProgramDay);
-document.getElementById('btn-delete-program-day').addEventListener('click', () => {
-  if (!currentProgramDate) return;
-  scheduleProgramDayDelete(currentProgramDate);
-});
-
-// Two-step "arm, then confirm" pattern instead of a blocking confirm()
-// dialog, matching the rest of this app. First click turns the button into
-// an explicit warning; a second click within 5s actually deletes everything
-// in the `programs` collection (no undo — this is a genuinely destructive,
-// bulk action, unlike the single-day delete above).
-let deleteAllProgramsArmed = false;
-let deleteAllProgramsArmTimeout = null;
-
-function disarmDeleteAllPrograms() {
-  deleteAllProgramsArmed = false;
-  clearTimeout(deleteAllProgramsArmTimeout);
-  const btn = document.getElementById('btn-delete-all-programs');
-  btn.textContent = 'Delete All Events';
-  btn.classList.remove('btn-armed');
-}
-
-document.getElementById('btn-delete-all-programs').addEventListener('click', () => {
-  const btn = document.getElementById('btn-delete-all-programs');
-
-  if (!deleteAllProgramsArmed) {
-    deleteAllProgramsArmed = true;
-    btn.textContent = '⚠️ Click again to permanently delete ALL events';
-    btn.classList.add('btn-armed');
-    deleteAllProgramsArmTimeout = setTimeout(disarmDeleteAllPrograms, 5000);
-    return;
-  }
-
-  disarmDeleteAllPrograms();
-  btn.disabled = true;
-
-  db.collection('programs').get()
-    .then(snapshot => {
-      if (snapshot.empty) {
-        showToast('No events to delete.', 'success');
-        return;
-      }
-      const docs = snapshot.docs;
-      const chunks = [];
-      for (let i = 0; i < docs.length; i += 500) chunks.push(docs.slice(i, i + 500));
-
-      return chunks.reduce((promise, chunk) => promise.then(() => {
-        const batch = db.batch();
-        chunk.forEach(doc => batch.delete(doc.ref));
-        return batch.commit();
-      }), Promise.resolve()).then(() => {
-        showToast(`Deleted ${docs.length} day(s) of events.`, 'success');
-        document.getElementById('program-day-editor').classList.add('hidden');
-        currentProgramDate = null;
-        document.getElementById('program-day-picker').value = '';
-      });
-    })
-    .catch(err => showToast('Error deleting events: ' + err.message, 'error'))
-    .finally(() => { btn.disabled = false; });
-});
-
-document.getElementById('btn-add-announcement').addEventListener('click', () => {
-  addHubItemRow(document.getElementById('announcements-list'), '', '', 'announcements');
-  markSectionDirty('announcements');
-});
-document.getElementById('btn-save-announcements').addEventListener('click', () =>
-  saveHubList('announcements', 'announcements-list', 'announcements', document.getElementById('btn-save-announcements')));
-
-/* ============================================================
-   KIOSK SETTINGS
-   ============================================================ */
-function loadKioskSettings() {
-  db.collection('settings').doc('kiosk').get().then(doc => {
-    if (!doc.exists) return;
-    const data = doc.data();
-    document.getElementById('setting-locked').checked = data.locked || false;
-    document.getElementById('setting-prayer-reel').checked = !!(data.specialReels && data.specialReels.prayerTimes);
-    document.getElementById('setting-prayer-reel-duration').value = (data.specialReels && data.specialReels.prayerTimesDurationSeconds) || 15;
-    document.getElementById('setting-idle-timeout').value = data.hubIdleTimeoutSeconds || 30;
-    document.getElementById('setting-saying-reel').checked = !!(data.specialReels && data.specialReels.saying);
-    document.getElementById('setting-saying-reel-duration').value = (data.specialReels && data.specialReels.sayingDurationSeconds) || 15;
-  });
-}
-
-document.getElementById('setting-locked').addEventListener('change', () => {
-  const locked = document.getElementById('setting-locked').checked;
-  db.collection('settings').doc('kiosk').set({ locked }, { merge: true })
-    .then(() => showToast(locked ? 'Screen locked.' : 'Screen unlocked.', 'success'));
-});
-
-document.getElementById('setting-prayer-reel').addEventListener('change', () => {
-  const enabled = document.getElementById('setting-prayer-reel').checked;
-  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimes: enabled } }, { merge: true })
-    .then(() => showToast(enabled ? 'Prayer slide enabled.' : 'Prayer slide disabled.', 'success'));
-});
-
-document.getElementById('setting-prayer-reel-duration').addEventListener('change', () => {
-  const seconds = parseInt(document.getElementById('setting-prayer-reel-duration').value, 10) || 15;
-  db.collection('settings').doc('kiosk').set({ specialReels: { prayerTimesDurationSeconds: seconds } }, { merge: true })
-    .then(() => showToast('Saved.', 'success'));
-});
-
-document.getElementById('setting-saying-reel').addEventListener('change', () => {
-  const enabled = document.getElementById('setting-saying-reel').checked;
-  db.collection('settings').doc('kiosk').set({ specialReels: { saying: enabled } }, { merge: true })
-    .then(() => showToast(enabled ? 'Saying slide enabled.' : 'Saying slide disabled.', 'success'));
-});
-
-document.getElementById('setting-saying-reel-duration').addEventListener('change', () => {
-  const seconds = parseInt(document.getElementById('setting-saying-reel-duration').value, 10) || 15;
-  db.collection('settings').doc('kiosk').set({ specialReels: { sayingDurationSeconds: seconds } }, { merge: true })
-    .then(() => showToast('Saved.', 'success'));
-});
-
-/* ============================================================
-   SAYING OF THE WEEK — hub_content/saying, written weekly by the
-   newsletter bot; editable here (a later newsletter replaces it).
-   ============================================================ */
-let currentSaying = {};
-
-function loadSaying() {
-  db.collection('hub_content').doc('saying').onSnapshot(doc => {
-    currentSaying = doc.exists ? doc.data() : {};
-    const meta = document.getElementById('saying-reel-meta');
-    if (!currentSaying.quote) {
-      meta.textContent = 'No saying yet. The newsletter bot fills this in weekly, or click Edit.';
-      return;
-    }
-    const quote = currentSaying.quote.length > 70 ? currentSaying.quote.slice(0, 70) + '…' : currentSaying.quote;
-    meta.textContent = `${quote}${currentSaying.attribution ? ' · ' + currentSaying.attribution : ''}`;
-  });
-}
-
-function toggleSayingEdit(open) {
-  document.getElementById('saying-edit-form').classList.toggle('hidden', !open);
-  if (!open) return;
-  document.getElementById('saying-quote').value = currentSaying.quote || '';
-  document.getElementById('saying-attribution').value = currentSaying.attribution || '';
-  document.getElementById('saying-reference').value = currentSaying.reference || '';
-}
-
-document.getElementById('btn-edit-saying').addEventListener('click', () => toggleSayingEdit(true));
-document.getElementById('btn-cancel-saying').addEventListener('click', () => toggleSayingEdit(false));
-document.getElementById('btn-save-saying').addEventListener('click', () => {
-  const quote = document.getElementById('saying-quote').value.trim();
-  if (!quote) {
-    showToast('Enter the saying first.', 'error');
-    return;
-  }
-  db.collection('hub_content').doc('saying').set({
-    quote,
-    attribution: document.getElementById('saying-attribution').value.trim(),
-    reference: document.getElementById('saying-reference').value.trim(),
-    updatedBy: 'manual',
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  })
-    .then(() => {
-      toggleSayingEdit(false);
-      showToast('Saying saved.', 'success');
-    })
-    .catch(err => showToast('Error: ' + err.message, 'error'));
-});
-
-document.getElementById('btn-save-settings').addEventListener('click', () => {
-  const timeout = parseInt(document.getElementById('setting-idle-timeout').value, 10) || 30;
-  db.collection('settings').doc('kiosk').set({ hubIdleTimeoutSeconds: timeout }, { merge: true })
-    .then(() => showToast('Saved!', 'success'))
-    .catch(err => showToast('Error: ' + err.message, 'error'));
-});
-</script>
+<script src="admin.js"></script>
 </body>
 </html>
