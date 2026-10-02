@@ -480,15 +480,75 @@ function loadListDoc(path, body, emptyMessage, simpleText) {
       body.innerHTML = `<p>${emptyMessage}</p>`;
       return;
     }
-    body.innerHTML = items.map(item => `
-      <div class="announcement-item">
-        <div class="announcement-date">${item.date || ''}</div>
-        <div>${item.text || ''}</div>
-      </div>
-    `).join('');
+    body.innerHTML = buildAnnouncementsHtml(items);
   }).catch(() => {
     body.innerHTML = `<p>${emptyMessage}</p>`;
   });
+}
+
+// One card per announcement. Dates like "September 22, 2026" (what the
+// newsletter bot and admin write) get a calendar badge and a "Today" /
+// "In 3 days" tag; free-form dates ("Every Friday") are shown as a label.
+function buildAnnouncementsHtml(items) {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Upcoming first (soonest at the top), then undated in saved order,
+  // then past ones (most recent first) at the bottom.
+  const entries = items.filter(item => item.text).map((item, order) => {
+    const dateText = String(item.date || '').trim();
+    const parsed = dateText ? new Date(dateText) : null;
+    const hasDate = !!parsed && !isNaN(parsed);
+    if (hasDate) parsed.setHours(0, 0, 0, 0);
+    const daysAway = hasDate ? Math.round((parsed - today) / DAY_MS) : null;
+    const group = !hasDate ? 1 : daysAway >= 0 ? 0 : 2;
+    return { item, order, dateText, parsed, hasDate, daysAway, group };
+  });
+  entries.sort((a, b) =>
+    a.group - b.group ||
+    (a.group === 0 ? a.daysAway - b.daysAway : a.group === 2 ? b.daysAway - a.daysAway : 0) ||
+    a.order - b.order);
+
+  const cards = entries.map(({ item, dateText, parsed, hasDate, daysAway }, i) => {
+    let badge;
+    let tag = '';
+    let state = '';
+
+    if (hasDate) {
+      if (daysAway === 0) tag = 'Today';
+      else if (daysAway === 1) tag = 'Tomorrow';
+      else if (daysAway > 1 && daysAway <= 7) tag = `In ${daysAway} days`;
+      if (daysAway < 0) state = 'is-past';
+      else if (daysAway <= 1) state = 'is-soon';
+      badge = `
+        <div class="announcement-badge">
+          <div class="announcement-badge-month">${CALENDAR_MONTH_NAMES[parsed.getMonth()].slice(0, 3)}</div>
+          <div class="announcement-badge-day">${parsed.getDate()}</div>
+          <div class="announcement-badge-weekday">${parsed.toLocaleDateString([], { weekday: 'short' })}</div>
+        </div>`;
+    } else {
+      badge = `
+        <div class="announcement-badge announcement-badge-icon">
+          <img src="assets/Announcements.png" alt="">
+        </div>`;
+    }
+
+    return `
+      <div class="announcement-card ${state}" style="animation-delay: ${Math.min(i, 8) * 70}ms">
+        ${badge}
+        <div class="announcement-body">
+          ${tag || (!hasDate && dateText) ? `
+          <div class="announcement-meta">
+            ${tag ? `<span class="announcement-tag">${tag}</span>` : ''}
+            ${!hasDate && dateText ? `<span class="announcement-date-label">${escapeHtml(dateText)}</span>` : ''}
+          </div>` : ''}
+          <div class="announcement-text">${escapeHtml(item.text).replace(/\n/g, '<br>')}</div>
+        </div>
+      </div>`;
+  });
+
+  return `<div class="announcement-list">${cards.join('')}</div>`;
 }
 
 function getPrayerTimes(onLoaded, onError) {

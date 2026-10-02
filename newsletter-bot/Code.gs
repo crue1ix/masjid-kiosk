@@ -121,7 +121,7 @@ function processNewsletters() {
   (apiKey ? messages : []).forEach(message => {
     const id = message.getId();
     try {
-      const parsed = parseNewsletterMessage_(message, apiKey);
+      const parsed = parseNewsletterMessage_(message, apiKey, token);
       const summary = publishParsed_(parsed, message, token);
       processed.push(id);
       delete failures[id];
@@ -187,8 +187,9 @@ function testParseOnly(messageId) {
     const msgs = threads[0].getMessages();
     message = msgs[msgs.length - 1];
   }
-  const apiKey = getGeminiApiKey_(getFirestoreToken_());
-  const parsed = parseNewsletterMessage_(message, apiKey);
+  const token = getFirestoreToken_();
+  const apiKey = getGeminiApiKey_(token);
+  const parsed = parseNewsletterMessage_(message, apiKey, token);
   Logger.log(`Subject: ${message.getSubject()} (id ${message.getId()})`);
   Logger.log(JSON.stringify({ programDays: parsed.programDays, announcements: parsed.announcements, saying: parsed.saying }, null, 2));
   if (parsed.textOnly) Logger.log('Text-only parse — no posters picked.');
@@ -421,6 +422,9 @@ Prose notices worth showing on a kiosk: moon-sighting declarations, upcoming spe
 For each announcement:
 - monthName / dayNumber: the single most important date the announcement is centered on. If none is central, monthName is an empty string and dayNumber is 0.
 - text: a clear, concise 1-3 sentence summary for a kiosk display — capture the key fact and any critical date; it does not need to be verbatim.
+- existingIndex: the newsletter repeats notices week after week, and the kiosk may already show this one. After the newsletter you are given a numbered list "ANNOUNCEMENTS ALREADY ON THE KIOSK". If this announcement is about the same thing as one of those (same event, drive, or notice — even if worded differently or with a detail added or changed), set existingIndex to that number. Otherwise set it to -1.
+
+List each distinct notice only once, even if the newsletter mentions it in several places.
 
 === PART 3: Posters -> posters ===
 Each image is preceded by a label like "[Image 0]". Some images are posters that will be shown full-screen on the masjid's digital display; most others are not. A poster is a self-contained, designed graphic promoting an event, program, class, majlis, fundraiser, occasion or campaign, with readable text, that makes sense on its own (a program schedule flyer counts).
@@ -484,9 +488,10 @@ const NEWSLETTER_PARSE_SCHEMA = {
         properties: {
           monthName: { type: 'STRING' },
           dayNumber: { type: 'INTEGER' },
-          text: { type: 'STRING' }
+          text: { type: 'STRING' },
+          existingIndex: { type: 'INTEGER' }
         },
-        required: ['monthName', 'dayNumber', 'text']
+        required: ['monthName', 'dayNumber', 'text', 'existingIndex']
       }
     },
     posters: {
@@ -513,8 +518,17 @@ const NEWSLETTER_PARSE_SCHEMA = {
   required: ['programDays', 'announcements', 'posters', 'sayingOfTheWeek']
 };
 
-function parseNewsletterMessage_(message, apiKey) {
-  const text = `Subject: ${message.getSubject()}\nSent: ${message.getDate().toDateString()}\n\n${getMessageText_(message)}`;
+function parseNewsletterMessage_(message, apiKey, token) {
+  // Gemini rewords each announcement every time it reads one, so repeats
+  // across weekly issues can't be caught by comparing text. Instead it's
+  // shown what's already on the kiosk and says which notice each one is.
+  const existingDoc = getDoc_(token, 'hub_content/announcements');
+  const existingAnnouncements = ((existingDoc && existingDoc.items) || []).filter(item => item.text);
+  const existingList = existingAnnouncements.length
+    ? existingAnnouncements.map((item, i) => `[${i}] ${item.date ? '(' + item.date + ') ' : ''}${item.text}`).join('\n')
+    : '(none)';
+  const text = `Subject: ${message.getSubject()}\nSent: ${message.getDate().toDateString()}\n\n${getMessageText_(message)}` +
+    `\n\n=== ANNOUNCEMENTS ALREADY ON THE KIOSK ===\n${existingList}`;
   Logger.log(`Reading "${message.getSubject()}" — collecting text and images…`);
   const media = getMediaParts_(message);
   const mediaParts = media.parts;
@@ -537,6 +551,11 @@ function parseNewsletterMessage_(message, apiKey) {
     raw.textOnly = true;
   }
   const parsed = normalizeParsed_(raw, message.getDate());
+  // Indices are resolved to text now: the list is re-read when publishing.
+  parsed.announcements.forEach(a => {
+    const match = existingAnnouncements[a.existingIndex];
+    a.matchesText = match ? match.text : null;
+  });
   parsed.textOnly = !!raw.textOnly;
   parsed.posters = parsed.textOnly ? [] : matchPosters_(raw.posters, media.images);
   return parsed;
@@ -754,7 +773,8 @@ function normalizeParsed_(raw, referenceDate) {
       date: (a.monthName && a.dayNumber)
         ? formatDateForDisplay_(resolveYear_(a.monthName, a.dayNumber, referenceDate))
         : '',
-      text: a.text.trim()
+      text: a.text.trim(),
+      existingIndex: Number.isInteger(a.existingIndex) ? a.existingIndex : -1
     }));
 
   const s = raw.sayingOfTheWeek || {};
@@ -811,6 +831,7 @@ function publishParsed_(parsed, message, token) {
   });
 
   let added = 0;
+  let updated = 0;
   if (parsed.announcements.length > 0) {
     const path = 'hub_content/announcements';
     const existing = getDoc_(token, path);
@@ -820,7 +841,27 @@ function publishParsed_(parsed, message, token) {
     );
     const normalize = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const seenText = new Set(items.map(item => normalize(item.text)));
+    const touched = new Set();
+    // Looked up by the text Gemini was shown, which an earlier repeat in
+    // this same email may already have replaced.
+    const byOriginalText = new Map(items.map(item => [item.text, item]));
     parsed.announcements.forEach(a => {
+      // A repeat of a notice already on the kiosk: the bot's own copy takes
+      // the newest wording (it may add or change a detail) and its 30-day
+      // clock restarts; one typed in by hand in admin is left alone.
+      const match = a.matchesText ? byOriginalText.get(a.matchesText) : null;
+      if (match) {
+        if (touched.has(match)) return;
+        touched.add(match);
+        if (match.source === 'newsletter-auto') {
+          match.text = a.text;
+          match.date = a.date || match.date;
+          match.addedAt = now.toISOString();
+          seenText.add(normalize(a.text));
+          updated++;
+        }
+        return;
+      }
       if (seenText.has(normalize(a.text))) return;
       seenText.add(normalize(a.text));
       items.push({ date: a.date, text: a.text, source: 'newsletter-auto', addedAt: now.toISOString() });
@@ -843,6 +884,7 @@ function publishParsed_(parsed, message, token) {
   const posterResult = publishPosters_(parsed.posters, message, token);
 
   return `${parsed.programDays.length} program day(s), ${added} new announcement(s), ` +
+    (updated ? `${updated} repeated announcement(s) updated, ` : '') +
     `${posterResult.added} new poster(s)` +
     (parsed.saying ? ', saying of the week updated' : '') +
     (posterResult.renewed ? `, ${posterResult.renewed} renewed` : '') +

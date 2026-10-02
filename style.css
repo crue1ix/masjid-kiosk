@@ -842,17 +842,160 @@ img, video {
   font-weight: 600;
 }
 
-.announcement-item {
-  border-bottom: 1px solid var(--bg-panel-light);
-  padding: 1rem 0;
+/* ── Announcements panel ── */
+.announcement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  padding: 0.2rem 0.2rem 1rem;
 }
 
-.announcement-item:last-child { border-bottom: none; }
+.announcement-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.6rem;
+  background: var(--bg-panel);
+  border: 1px solid var(--bg-panel-light);
+  border-radius: var(--radius);
+  padding: 1.5rem 1.8rem 1.5rem 2.1rem;
+  overflow: hidden;
+  box-shadow: 0 0.3rem 1.2rem rgba(120, 95, 30, 0.08);
+  animation: announcementIn 0.45s ease both;
+}
 
-.announcement-date {
+/* Gold accent strip down the left edge */
+.announcement-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 0.4rem;
+  background: linear-gradient(to bottom, var(--gold-light), var(--gold));
+}
+
+.announcement-card.is-soon {
+  border-color: var(--gold);
+  background: linear-gradient(to right, #FBF3DC, var(--bg-panel) 45%);
+}
+
+.announcement-card.is-past {
+  opacity: 0.55;
+}
+
+.announcement-card.is-past::before {
+  background: var(--bg-panel-light);
+}
+
+/* Tear-off calendar style date */
+.announcement-badge {
+  flex-shrink: 0;
+  width: 5.6rem;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid var(--bg-panel-light);
+  text-align: center;
+  line-height: 1;
+}
+
+.announcement-badge-month {
+  background: var(--gold);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0.45rem 0;
+}
+
+.announcement-badge-day {
+  font-family: 'Reem Kufi', sans-serif;
+  color: var(--text-light);
+  font-size: 2.4rem;
+  padding: 0.5rem 0 0.15rem;
+}
+
+.announcement-badge-weekday {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-bottom: 0.55rem;
+}
+
+.announcement-badge-icon {
+  height: 5.6rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-panel-light);
+  border-color: transparent;
+}
+
+.detail-body .announcement-badge-icon img {
+  width: 3.2rem;
+  height: 3.2rem;
+  object-fit: contain;
+  border-radius: 0;
+  mix-blend-mode: multiply;
+  opacity: 0.75;
+}
+
+.announcement-body {
+  flex: 1;
+  min-width: 0;
+  padding-top: 0.2rem;
+}
+
+.announcement-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin-bottom: 0.5rem;
+}
+
+.announcement-tag {
+  background: var(--gold);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  line-height: 1.2;
+}
+
+.announcement-date-label {
   color: var(--gold);
-  font-size: 0.9rem;
-  margin-bottom: 0.2rem;
+  font-family: 'Reem Kufi', sans-serif;
+  font-size: 1.1rem;
+  line-height: 1.2;
+}
+
+.announcement-text {
+  font-size: 1.3rem;
+  line-height: 1.6;
+  color: var(--text-light);
+}
+
+@keyframes announcementIn {
+  from { opacity: 0; transform: translateY(0.8rem); }
+  to { opacity: 1; transform: none; }
+}
+
+/* Past cards fade in to their dimmed opacity, not full */
+.announcement-card.is-past {
+  animation-name: announcementInPast;
+}
+
+@keyframes announcementInPast {
+  from { opacity: 0; transform: translateY(0.8rem); }
+  to { opacity: 0.55; transform: none; }
 }
 
 /* ============================================================

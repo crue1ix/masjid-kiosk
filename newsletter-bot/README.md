@@ -5,7 +5,7 @@ This bot puts newsletter content on the kiosk without anyone typing it in. A Goo
 - **Program days** go to `programs/{YYYY-MM-DD}`, the same documents the "Parse with AI" tool in `admin.html` writes. Lines that only announce a routine salaat are skipped, just like the paste tool. Friday's Jumu'ah Salaat is the exception and is always kept.
   - If a day already exists, the new items are **merged** in; nothing is overwritten. Duplicate items (same time and label) are ignored, so manual edits in admin survive.
 - **Announcements** are appended to `hub_content/announcements`.
-  - Duplicates (same text) are skipped.
+  - Repeats are caught even when worded differently. Gemini is shown the announcements already on the kiosk and says which one each new announcement repeats. A repeat updates the bot's existing card with the newest wording instead of adding another. Cards you typed in by hand are never changed.
   - Announcements the bot added are removed automatically after 30 days. Ones you add by hand are never touched.
 
 - **Saying of the Week** is copied word-for-word into `hub_content/saying` (`quote`, `attribution`, `reference`). Each newsletter's saying replaces the last one. The kiosk shows it as a built-in slide, which you turn on with the **Saying of the Week** row's Active switch in the admin Media list. You can fix the text with that row's **Edit** button.
