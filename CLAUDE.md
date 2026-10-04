@@ -81,3 +81,11 @@ the kiosk is 3840 x 2160 --  side x top
 
 
 ### 
+
+## Versioning
+
+When committing, always choose the version number yourself (look at the latest commit's `V<x.y.z>` and go up from it) — don't ask the user. Commit message format: `V<x.y.z> Kiosk - <summary>`.
+- Small fixes/tweaks: bump the last number (4.1.1 → 4.1.2).
+- New features: bump the middle number (4.1 → 4.2).
+- Major updates/redesigns: bump the first number (4.x → 5.0).
+- cp means to commit and push to github
