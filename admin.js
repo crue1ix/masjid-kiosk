@@ -189,13 +189,72 @@ function startApp() {
   loadGeminiApiKey();
   loadNewsletterBotStatus();
   loadKioskSettings();
+  loadHubTaps();
   // Keeps "checked 5 min ago" and expiry counts honest on a page left open.
   setInterval(() => {
     renderHomeDate();
     renderBotStatus();
     renderHomeReel();
+    renderHubTaps();
   }, 60 * 1000);
 }
+
+/* ============================================================
+   HUB OPENS — index.html adds 1 to hub_taps/{YYYY-MM-DD} each time
+   a visitor taps the ad reel to open the hub (not while locked)
+   ============================================================ */
+let hubTapsByDay = null; // null = loading, 'unreadable' = rules block it
+
+function loadHubTaps() {
+  db.collection('hub_taps').onSnapshot(snapshot => {
+    hubTapsByDay = {};
+    snapshot.docs.forEach(doc => { hubTapsByDay[doc.id] = doc.data().count || 0; });
+    renderHubTaps();
+  }, () => {
+    hubTapsByDay = 'unreadable';
+    renderHubTaps();
+  });
+}
+
+function renderHubTaps() {
+  if (hubTapsByDay === null) return;
+  if (hubTapsByDay === 'unreadable') {
+    ['home-taps-today', 'home-taps-week', 'home-taps-total'].forEach(id => { $(id).textContent = '—'; });
+    return;
+  }
+  const dayKey = offset => { const d = new Date(); d.setDate(d.getDate() - offset); return d.toLocaleDateString('en-CA'); };
+  let week = 0;
+  for (let i = 0; i < 7; i++) week += hubTapsByDay[dayKey(i)] || 0;
+  const total = Object.values(hubTapsByDay).reduce((sum, n) => sum + n, 0);
+  $('home-taps-today').textContent = (hubTapsByDay[dayKey(0)] || 0).toLocaleString();
+  $('home-taps-week').textContent = week.toLocaleString();
+  $('home-taps-total').textContent = total.toLocaleString();
+}
+
+$('btn-reset-hub-taps').addEventListener('click', async () => {
+  const ok = await confirmDialog({
+    title: 'Reset the hub counter?',
+    message: 'Today, Last 7 days and All time will all go back to 0. This can’t be undone.',
+    confirmLabel: 'Reset counter'
+  });
+  if (!ok) return;
+  const btn = $('btn-reset-hub-taps');
+  btn.disabled = true;
+  try {
+    const snapshot = await db.collection('hub_taps').get();
+    // Batches max out at 500 writes; one doc per day so this is rarely more than one.
+    for (let i = 0; i < snapshot.docs.length; i += 500) {
+      const batch = db.batch();
+      snapshot.docs.slice(i, i + 500).forEach(doc => batch.delete(doc.ref));
+      await batch.commit();
+    }
+    showToast('Hub counter reset.', 'success');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 /* ============================================================
    ROUTER

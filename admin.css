@@ -527,6 +527,9 @@ input:focus, textarea:focus {
 .stat-desc strong { color: var(--text); font-weight: 600; }
 .stat-foot { margin-top: auto; padding-top: 0.6rem; display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
 
+.stat-card-wide { grid-column: 1 / -1; min-height: 0; }
+.stat-counters { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; padding-top: 0.6rem; }
+
 .stat-quote {
   font-style: italic;
   font-size: 0.92rem;

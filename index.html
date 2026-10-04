@@ -360,8 +360,25 @@ function revealView(view, direction) {
   setTimeout(() => view.classList.remove(cls), 450);
 }
 
+// One doc per local day; the Firestore rule only lets the (signed-out) kiosk
+// add 1 at a time. Shown on the admin Home page.
+// Reopening within a minute of the hub closing is treated as the same
+// visitor going back and forth, so it isn't counted again.
+const HUB_TAP_COOLDOWN_MS = 60 * 1000;
+let hubClosedAt = 0;
+
+function countHubTap() {
+  if (Date.now() - hubClosedAt < HUB_TAP_COOLDOWN_MS) return;
+  const day = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  db.collection('hub_taps').doc(day)
+    .set({ count: firebase.firestore.FieldValue.increment(1) }, { merge: true })
+    .catch(() => {}); // never let stats get in the way of the kiosk
+}
+
 function openHub() {
-  if (kioskLocked) return;
+  // Ignore taps while locked or mid-wipe (a double tap would count twice).
+  if (kioskLocked || starWipe.classList.contains('playing')) return;
+  countHubTap();
   playWipe(() => {
     adView.classList.add('hidden');
     hubView.classList.remove('hidden');
@@ -376,6 +393,7 @@ function openHub() {
 
 function closeHub() {
   clearTimeout(hubIdleTimer);
+  hubClosedAt = Date.now();
   playWipe(() => {
     hubView.classList.add('hidden');
     adView.classList.remove('hidden');

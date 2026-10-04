@@ -38,6 +38,29 @@ admin page instead of needing to touch GitHub every time you add an ad.
          allow read: if true;
          allow write: if request.auth != null;
        }
+       match /settings/{docId} {
+         allow read: if true;
+         allow write: if request.auth != null;
+       }
+       match /programs/{date} {
+         allow read: if true;
+         allow write: if request.auth != null;
+       }
+       match /admin_config/{docId} {
+         allow read: if request.auth != null;
+         allow write: if request.auth != null;
+       }
+       // "Hub opens" counter: the kiosk isn't signed in, so it may only
+       // add 1 to today's count. Admins can delete days to reset it.
+       match /hub_taps/{day} {
+         allow read: if true;
+         allow create: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+           && request.resource.data.keys().hasOnly(['count'])
+           && request.resource.data.count == 1;
+         allow update: if request.resource.data.keys().hasOnly(['count'])
+           && request.resource.data.count == resource.data.count + 1;
+         allow delete: if request.auth != null;
+       }
      }
    }
    ```

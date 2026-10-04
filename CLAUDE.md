@@ -54,6 +54,9 @@ Single file containing all customizable settings:
   /donate         { text }
   /about          { text }
   /saying         { quote, attribution, reference, updatedBy, updatedAt }  (Saying of the Week reel)
+
+/hub_taps/{YYYY-MM-DD} (collection)
+  count   — hub opens from the ad reel that day (kiosk's local date; locked taps not counted)
 ```
 
 Firestore rules: public reads; authenticated writes only.
