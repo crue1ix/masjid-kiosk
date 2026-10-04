@@ -142,7 +142,7 @@ document.addEventListener('gesturestart', e => e.preventDefault());
 document.addEventListener('keydown', e => {
   // Best-effort only — browsers ignore preventDefault on OS-level shortcuts,
   // but this stops in-page navigation shortcuts a stray keyboard could trigger.
-  const blocked = ['F11', 'F5', 'F12'];
+  const blocked = ['F11', 'F5'];
   if (blocked.includes(e.key) || (e.ctrlKey && ['r', 'w', 't', 'n'].includes(e.key.toLowerCase()))) {
     e.preventDefault();
   }
