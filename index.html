@@ -148,6 +148,25 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// Secret refresh: tap the hub logo 3 times within 1.5s to reload the page
+// (pulls in newly deployed changes without touching the Android device settings).
+(() => {
+  const logo = document.querySelector('.hub-logo');
+  if (!logo) return;
+  let taps = 0, timer = null;
+  logo.addEventListener('click', () => {
+    taps++;
+    clearTimeout(timer);
+    if (taps >= 3) {
+      const url = new URL(location.href);
+      url.searchParams.set('r', Date.now()); // cache-bust so the WebView refetches index.html
+      location.replace(url.toString());
+      return;
+    }
+    timer = setTimeout(() => { taps = 0; }, 1500);
+  });
+})();
+
 /* ============================================================
    KIOSK SETTINGS (real-time from Firestore)
    ============================================================ */
