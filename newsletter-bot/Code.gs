@@ -70,6 +70,8 @@ const POSTER_DURATION_SECONDS = 8;
 
 const LABEL_PROCESSED = 'kiosk-processed';
 const LABEL_FAILED = 'kiosk-failed';
+// Emails Gemini judged not to be the weekly schedule — nothing published.
+const LABEL_IGNORED = 'kiosk-ignored';
 
 /* ============================================================
    ENTRY POINTS
@@ -80,6 +82,7 @@ function setup() {
   getConfig_();
   GmailApp.getUserLabelByName(LABEL_PROCESSED) || GmailApp.createLabel(LABEL_PROCESSED);
   GmailApp.getUserLabelByName(LABEL_FAILED) || GmailApp.createLabel(LABEL_FAILED);
+  GmailApp.getUserLabelByName(LABEL_IGNORED) || GmailApp.createLabel(LABEL_IGNORED);
 
   ScriptApp.getProjectTriggers()
     .filter(t => t.getHandlerFunction() === 'processNewsletters')
@@ -103,10 +106,12 @@ function processNewsletters() {
   const messages = findNewNewsletterMessages_(config.newsletterFrom, processed, failures);
   const processedLabel = GmailApp.getUserLabelByName(LABEL_PROCESSED) || GmailApp.createLabel(LABEL_PROCESSED);
   const failedLabel = GmailApp.getUserLabelByName(LABEL_FAILED) || GmailApp.createLabel(LABEL_FAILED);
+  const ignoredLabel = GmailApp.getUserLabelByName(LABEL_IGNORED) || GmailApp.createLabel(LABEL_IGNORED);
 
   let lastSubject = null;
   let lastError = null;
   let lastSummary = null;
+  let lastIgnored = null;
 
   let apiKey = null;
   if (messages.length > 0) {
@@ -122,6 +127,18 @@ function processNewsletters() {
     const id = message.getId();
     try {
       const parsed = parseNewsletterMessage_(message, apiKey, token);
+      // Only the weekly schedule issue feeds the kiosk. Anything else from
+      // the masjid (appeals, one-off reminders, …) is marked done without
+      // publishing, so it isn't sent to Gemini again.
+      if (!parsed.isWeeklySchedule) {
+        processed.push(id);
+        delete failures[id];
+        message.getThread().addLabel(ignoredLabel);
+        lastIgnored = { subject: message.getSubject(), reason: parsed.classificationReason };
+        Logger.log(`Ignored "${message.getSubject()}" — not a weekly schedule: ${parsed.classificationReason}`);
+        saveProgress_(props, processed, failures);
+        return;
+      }
       const summary = publishParsed_(parsed, message, token);
       processed.push(id);
       delete failures[id];
@@ -164,6 +181,11 @@ function processNewsletters() {
     status.lastProcessedAt = new Date();
     status.lastSummary = lastSummary;
   }
+  if (lastIgnored) {
+    status.lastIgnoredSubject = lastIgnored.subject;
+    status.lastIgnoredReason = lastIgnored.reason;
+    status.lastIgnoredAt = new Date();
+  }
   patchDoc_(token, 'admin_config/newsletter_status', status, Object.keys(status));
 }
 
@@ -191,6 +213,7 @@ function testParseOnly(messageId) {
   const apiKey = getGeminiApiKey_(token);
   const parsed = parseNewsletterMessage_(message, apiKey, token);
   Logger.log(`Subject: ${message.getSubject()} (id ${message.getId()})`);
+  Logger.log(`Weekly schedule: ${parsed.isWeeklySchedule ? 'yes' : 'NO — would be ignored'} (${parsed.classificationReason})`);
   Logger.log(JSON.stringify({ programDays: parsed.programDays, announcements: parsed.announcements, saying: parsed.saying }, null, 2));
   if (parsed.textOnly) Logger.log('Text-only parse — no posters picked.');
   Logger.log(`Posters (${parsed.posters.length}):`);
@@ -250,7 +273,7 @@ function getConfig_() {
    ============================================================ */
 
 // Tracked per message, not per thread: Gmail groups newsletters that
-// share a subject line ("Weekly Programs") into one thread, so a
+// share a subject line ("Weekly Schedule") into one thread, so a
 // thread-level "done" label would hide every later issue.
 function findNewNewsletterMessages_(fromAddress, processedIds, failures) {
   const done = new Set(processedIds);
@@ -380,9 +403,16 @@ function findScheduleEnd_(html) {
 // Adapted from PROGRAM_PARSE_SYSTEM_PROMPT in admin.html. A newsletter
 // can carry a schedule AND several announcements at once, so instead of
 // classifying the whole message into one type it extracts both lists.
-const NEWSLETTER_PARSE_PROMPT = `You are extracting data from an email newsletter sent by a mosque (Masjid Al Hayy) to its community. The newsletter's content may be in the email text, inside attached/embedded flyer images, inside an attached PDF, or a mix. Read ALL of it (including every image) and extract two things: the programs schedule and community announcements. A single newsletter may contain both, only one, or neither.
+const NEWSLETTER_PARSE_PROMPT = `You are extracting data from an email sent by a mosque (Masjid Al Hayy) to its community. The content may be in the email text, inside attached/embedded flyer images, inside an attached PDF, or a mix. Read ALL of it (including every image). First decide whether this email is the masjid's weekly schedule newsletter; if it is, extract the programs schedule, community announcements, posters and Saying of the Week.
 
 Ignore newsletter boilerplate: unsubscribe links, "view in browser", mailing address footers, social media links, donation bank details, and generic greetings.
+
+=== FIRST: Is this the weekly schedule email? -> classificationReason, isWeeklySchedule ===
+The masjid sends many kinds of emails from the same address, and only its regular weekly schedule newsletter may be used. That email's main purpose is to list the masjid's upcoming programs for the coming week, day by day (in the format shown in Part 1), and it usually also carries announcements, posters and a Saying of the Week. Its subject line varies, so judge by the content, not only the subject.
+Set isWeeklySchedule to false for every other kind of email, even if it mentions dates or events. For example: a flyer or reminder for one event, a fundraising or donation appeal, a standalone announcement, a condolence or janaza notice, a moon-sighting notice, a mailing-list welcome or subscription confirmation, a receipt, or anything else. When unsure, set it to false.
+- classificationReason: one short sentence saying what kind of email this is and why.
+- isWeeklySchedule: true only for the weekly schedule newsletter.
+If isWeeklySchedule is false, return empty arrays and empty strings for everything below.
 
 === PART 1: Programs schedule -> programDays ===
 Scheduled, dated, timed events at the masjid. Often looks like this (real example from the masjid):
@@ -399,7 +429,7 @@ Wiladat Imam Hassan Al Askari (as)
 - 6:07 AM - Fajr Salaat (6:30 AM Jamaat)
 - 8:10 PM - Hadith e Kisa - Ammar Ladak
 
-Each day block usually starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>", is sometimes followed by a line naming a special occasion, then a list of "<time> - <event label>" lines. A flyer for a single event (e.g. "Majlis on Friday October 3rd at 8 PM with Maulana X") is also a program day with one item.
+Each day block usually starts with "<Weekday>, <Month> <Day><ordinal suffix> / <Nth> Night of <Hijri month>", is sometimes followed by a line naming a special occasion, then a list of "<time> - <event label>" lines. A flyer for a single event inside the weekly newsletter (e.g. "Majlis on Friday October 3rd at 8 PM with Maulana X") is also a program day with one item.
 
 IMPORTANT — skip routine prayer lines: the kiosk this feeds already has a separate, always-on Prayer Times display, so do NOT include a line that is only a routine obligatory prayer announcement (Fajr Salaat, Zohrain Salaat, Asr Salaat, Maghribain Salaat, Isha Salaat), even if it has a jamaat-time note in parentheses like "(6:30 AM Jamaat)". EXCEPTION: always KEEP the Friday Jumu'ah Salaat line (any spelling, e.g. Jummah, Juma, Jumu'ah) — it is a weekly congregational event the masjid wants on the calendar. Apart from Jumu'ah, only include lines that name something beyond the routine prayer itself — a lecture, dua, recitation, ziyarat, class, breakfast, majlis, or other named activity. If a routine prayer is bundled with something extra on the same line (e.g. "Fajr Salaat, Dua Sabah, Breakfast"), keep the line since it contains real content beyond the prayer. If, after excluding pure routine-prayer lines, a day has no items left AND no special occasion, omit that day entirely. But if the day still has a named special occasion (e.g. "Wiladat Imam Hassan Al Askari (as)"), keep that day even with an empty items list.
 
@@ -455,6 +485,8 @@ Return empty arrays for anything not present. Do not guess or invent content tha
 const NEWSLETTER_PARSE_SCHEMA = {
   type: 'OBJECT',
   properties: {
+    classificationReason: { type: 'STRING' },
+    isWeeklySchedule: { type: 'BOOLEAN' },
     programDays: {
       type: 'ARRAY',
       items: {
@@ -515,7 +547,10 @@ const NEWSLETTER_PARSE_SCHEMA = {
       required: ['quote', 'attribution', 'reference']
     }
   },
-  required: ['programDays', 'announcements', 'posters', 'sayingOfTheWeek']
+  required: ['classificationReason', 'isWeeklySchedule', 'programDays', 'announcements', 'posters', 'sayingOfTheWeek'],
+  // Gemini writes properties alphabetically unless told otherwise; this
+  // makes it reason about and decide the email type before extracting.
+  propertyOrdering: ['classificationReason', 'isWeeklySchedule', 'programDays', 'announcements', 'posters', 'sayingOfTheWeek']
 };
 
 function parseNewsletterMessage_(message, apiKey, token) {
@@ -551,6 +586,9 @@ function parseNewsletterMessage_(message, apiKey, token) {
     raw.textOnly = true;
   }
   const parsed = normalizeParsed_(raw, message.getDate());
+  // Strict: a missing or non-boolean answer counts as "not the schedule".
+  parsed.isWeeklySchedule = raw.isWeeklySchedule === true;
+  parsed.classificationReason = String(raw.classificationReason || '').trim() || 'No reason given.';
   // Indices are resolved to text now: the list is re-read when publishing.
   parsed.announcements.forEach(a => {
     const match = existingAnnouncements[a.existingIndex];

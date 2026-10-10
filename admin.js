@@ -2163,6 +2163,10 @@ function renderBotStatus() {
     rows.push(['Last newsletter added', s.lastProcessedSubject ? `"${s.lastProcessedSubject}"` : 'None yet']);
     if (s.lastProcessedAt) rows.push(['Added on', fmt(s.lastProcessedAt)]);
     if (s.lastSummary) rows.push(['What it added', s.lastSummary]);
+    // Emails the AI decided aren't the weekly schedule (nothing published).
+    if (s.lastIgnoredSubject) {
+      rows.push(['Last email ignored', `"${s.lastIgnoredSubject}", ${timeAgo(tsToDate(s.lastIgnoredAt))}. ${s.lastIgnoredReason || ''}`.trim()]);
+    }
     if (s.lastError) rows.push(['Last problem', s.lastError, 'error']);
   } else if (health.detail) {
     rows.push(['Status', health.detail]);

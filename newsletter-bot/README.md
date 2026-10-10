@@ -1,6 +1,8 @@
 # Newsletter bot
 
-This bot puts newsletter content on the kiosk without anyone typing it in. A Google Apps Script runs inside a dedicated Gmail account that is subscribed to the masjid's email newsletter. Every 30 minutes it checks that inbox for new issues. It sends each issue's text and flyer images or PDFs to Gemini, then publishes what Gemini extracts to Firestore:
+This bot puts newsletter content on the kiosk without anyone typing it in. A Google Apps Script runs inside a dedicated Gmail account that is subscribed to the masjid's email newsletter. Every 30 minutes it checks that inbox for new emails. It sends each email's text and flyer images or PDFs to Gemini. If Gemini judges the email to be the **weekly schedule newsletter**, the bot publishes what Gemini extracts to Firestore. Every other email is ignored (see [Day-to-day](#day-to-day)).
+
+From a weekly schedule email, the bot publishes:
 
 - **Program days** go to `programs/{YYYY-MM-DD}`, the same documents the "Import a schedule from text" tool in `admin.html` writes. Lines that only announce a routine salaat are skipped, just like the paste tool. Friday's Jumu'ah Salaat is the exception and is always kept.
   - If a day already exists, the new items are **merged** in; nothing is overwritten. Duplicate items (same time and label) are ignored, so manual edits in admin survive.
@@ -60,7 +62,7 @@ The bot uses the same Gemini key the admin page does: `admin_config/gemini` → 
 ### 4. Test it, then turn it on
 1. In the editor, pick **`testParseOnly`** from the function dropdown and click **Run**.
    - Approve the permissions prompt. Google warns that the app is unverified; click Advanced → Go to project. This is expected for your own scripts.
-   - The function parses the most recent newsletter and **only logs** the result; it writes nothing.
+   - The function parses the most recent email from the newsletter address and **only logs** the result; it writes nothing. The first lines say whether Gemini judged it to be the weekly schedule.
    - Check the execution log. Program days and times should be right, routine salaat lines should be gone, and the announcements should make sense.
 2. Pick **`setup`** and click **Run**. This creates the Gmail labels and installs the 30-minute timer.
 3. Optionally, pick **`processNewsletters`** and click **Run** to publish the recent newsletter now, instead of waiting for the timer. Then check the kiosk.
@@ -69,6 +71,11 @@ The bot uses the same Gemini key the admin page does: `admin_config/gemini` → 
 
 ## Day-to-day
 
+- **Only the weekly schedule email is used, and the AI decides which email that is.** The masjid sends other emails from the same address too, such as one-off event reminders, fundraising appeals and condolence notices. The subject line isn't fixed, so Gemini reads each email and decides whether it's the weekly schedule newsletter.
+  - If it isn't, **nothing** from that email is published: no program days, announcements, posters or saying. The email gets the `kiosk-ignored` label in Gmail and isn't checked again.
+  - Admin → Settings → Newsletter bot shows the last ignored email and Gemini's reason.
+  - When unsure, Gemini is told to ignore the email. If it wrongly ignores a real weekly schedule, you can import that week from admin → Programs → Import a schedule from text, or adjust the "FIRST: Is this the weekly schedule email?" section of `NEWSLETTER_PARSE_PROMPT` in `Code.gs`.
+  - `testParseOnly` logs the decision and the reason without writing anything.
 - **The bot looks at emails from the last 14 days.** It tracks each email by ID, so every email is processed once. It also adds a `kiosk-processed` label in Gmail so you can see what it handled.
 - **Failures:**
   - A failed email is retried on the next run.
