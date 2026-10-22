@@ -5,9 +5,12 @@
    for admin review. Files go straight to Cloudinary, like admin uploads.
    See firestore.rules for what clients are (and aren't) allowed to touch.
    ============================================================ */
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// A named app keeps the portal's sign-in separate from admin.html's. Both pages
+// share one origin, so with the default app a client session in one tab and an
+// admin session (or admin.js's "not an admin" sign-out) in another would clobber each other.
+const portalApp = firebase.initializeApp(firebaseConfig, 'portal');
+const auth = portalApp.auth();
+const db = portalApp.firestore();
 
 const $ = id => document.getElementById(id);
 
