@@ -38,8 +38,8 @@ const GEMINI_FALLBACK_MAX_ATTEMPTS = 1;
 // so the text-only retry still gets a chance and the run ends cleanly
 // (the email is retried next run) instead of being cut off.
 const RUN_STARTED_AT = Date.now();
-const GEMINI_IMAGE_BUDGET_MS = 2 * 60 * 1000;
-const GEMINI_TIME_BUDGET_MS = 4 * 60 * 1000;
+const GEMINI_IMAGE_BUDGET_MS = 4 * 60 * 1000;
+const GEMINI_TIME_BUDGET_MS = 5 * 60 * 1000;
 
 const SEARCH_WINDOW = 'newer_than:14d';
 const MAX_FAILURES_PER_MESSAGE = 3;
@@ -48,11 +48,14 @@ const PROCESSED_ID_HISTORY = 300;
 // Flyer handling — small images are logos, social icons and tracking
 // pixels, not content. Gemini's inline request limit is ~20MB total.
 // Big multimodal requests make Gemini's free tier answer "503 overloaded"
-// on every model, so these are kept well under its ~20MB request limit.
+// on every model, so images are NOT sent all at once: they're split into
+// batches (one Gemini call each, results merged) that stay small. That
+// lets an email carry many posters without any single request getting big.
 const MIN_IMAGE_BYTES = 15 * 1024;
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
-const MAX_IMAGES_PER_EMAIL = 6;
-const MAX_INLINE_BYTES_TOTAL = 8 * 1024 * 1024;
+const MAX_IMAGES_PER_EMAIL = 30;
+const IMAGES_PER_BATCH = 4;
+const MAX_BATCH_BYTES = 6 * 1024 * 1024;
 const GEMINI_IMAGE_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif'];
 
 // Newsletter-sourced announcements older than this are pruned on each
@@ -319,9 +322,8 @@ function htmlToText_(html) {
 // label so Gemini can say which ones are posters; images[N] keeps the
 // bytes to upload them.
 function getMediaParts_(message) {
-  const parts = [];
+  const pdfParts = [];
   const images = [];
-  let totalBytes = 0;
   let imageCount = 0;
 
   const seenDigests = new Set();
@@ -333,18 +335,16 @@ function getMediaParts_(message) {
     const isImage = GEMINI_IMAGE_TYPES.indexOf(mimeType) !== -1;
     if (!isPdf && !isImage) return;
     if (isImage && (bytes.length < MIN_IMAGE_BYTES || bytes.length > MAX_IMAGE_BYTES || imageCount >= MAX_IMAGES_PER_EMAIL)) return;
-    if (totalBytes + bytes.length > MAX_INLINE_BYTES_TOTAL) return;
     // Newsletters often carry the same flyer twice (attached + hosted).
     const digest = Utilities.base64Encode(Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, bytes));
     if (seenDigests.has(digest)) return;
     seenDigests.add(digest);
-    totalBytes += bytes.length;
     if (isImage) {
-      parts.push({ text: `[Image ${images.length}]` });
       images.push({ bytes, mimeType, digest, sourceUrl: sourceUrl || '' });
       imageCount++;
+    } else if (bytes.length <= MAX_BATCH_BYTES) {
+      pdfParts.push({ bytes, part: { inline_data: { mime_type: mimeType, data: Utilities.base64Encode(bytes) } } });
     }
-    parts.push({ inline_data: { mime_type: mimeType, data: Utilities.base64Encode(bytes) } });
   };
 
   message.getAttachments({ includeInlineImages: true, includeAttachments: true }).forEach(att => {
@@ -375,7 +375,45 @@ function getMediaParts_(message) {
     }
   }
   if (skippedAboveSchedule) Logger.log(`Skipped ${skippedAboveSchedule} image(s) above the end of the schedule.`);
-  return { parts, images };
+  if (imageCount >= MAX_IMAGES_PER_EMAIL) Logger.log(`Hit the ${MAX_IMAGES_PER_EMAIL}-image cap — later images were not read.`);
+  return { pdfParts, images };
+}
+
+// Splits the media into Gemini requests. PDFs ride along with the first
+// batch; images are grouped IMAGES_PER_BATCH at a time (and under
+// MAX_BATCH_BYTES), each labelled with its email-wide "[Image N]" index.
+function buildMediaBatches_(media) {
+  const batches = [];
+  let current = null;
+  const startBatch = () => { current = { parts: [], bytes: 0, imageCount: 0 }; batches.push(current); };
+  startBatch();
+  media.pdfParts.forEach(p => { current.parts.push(p.part); current.bytes += p.bytes.length; });
+  media.images.forEach((img, i) => {
+    if (current.imageCount >= IMAGES_PER_BATCH || (current.imageCount > 0 && current.bytes + img.bytes.length > MAX_BATCH_BYTES)) startBatch();
+    current.parts.push({ text: `[Image ${i}]` });
+    current.parts.push({ inline_data: { mime_type: img.mimeType, data: Utilities.base64Encode(img.bytes) } });
+    current.bytes += img.bytes.length;
+    current.imageCount++;
+  });
+  return batches;
+}
+
+// Folds a later image batch's answer into the first one. The schedule
+// classification and Saying of the Week come from the first batch.
+function mergeBatchResult_(base, extra) {
+  base.programDays = (base.programDays || []).concat(extra.programDays || []);
+  const norm = s => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const seen = new Set((base.announcements || []).map(a => norm(a.text)));
+  (extra.announcements || []).forEach(a => {
+    if (!a.text || seen.has(norm(a.text))) return;
+    seen.add(norm(a.text));
+    base.announcements.push(a);
+  });
+  base.posters = (base.posters || []).concat(extra.posters || []);
+  const s = base.sayingOfTheWeek;
+  if ((!s || !String(s.quote || '').trim()) && extra.sayingOfTheWeek && String(extra.sayingOfTheWeek.quote || '').trim()) {
+    base.sayingOfTheWeek = extra.sayingOfTheWeek;
+  }
 }
 
 // The newsletter always puts its posters after the weekly schedule, so
@@ -566,25 +604,44 @@ function parseNewsletterMessage_(message, apiKey, token) {
     `\n\n=== ANNOUNCEMENTS ALREADY ON THE KIOSK ===\n${existingList}`;
   Logger.log(`Reading "${message.getSubject()}" — collecting text and images…`);
   const media = getMediaParts_(message);
-  const mediaParts = media.parts;
-  const fileParts = mediaParts.filter(p => p.inline_data);
-  const mediaBytes = fileParts.reduce((sum, p) => sum + p.inline_data.data.length * 3 / 4, 0);
-  Logger.log(`Sending to Gemini: ${text.length} chars of text + ${fileParts.length} image/PDF file(s), ${(mediaBytes / 1048576).toFixed(1)} MB…`);
+  const batches = buildMediaBatches_(media);
+  const hasMedia = media.images.length + media.pdfParts.length > 0;
+  Logger.log(`Sending to Gemini: ${text.length} chars of text + ${media.images.length} image(s) and ${media.pdfParts.length} PDF(s) in ${batches.length} request(s)…`);
 
   let raw;
   try {
-    raw = mediaParts.length
-      ? callGemini_(apiKey, [{ text }].concat(mediaParts), 3, GEMINI_IMAGE_BUDGET_MS)
+    raw = hasMedia
+      ? callGemini_(apiKey, [{ text }].concat(batches[0].parts), 3, GEMINI_IMAGE_BUDGET_MS)
       : callGemini_(apiKey, [{ text }], GEMINI_MAX_ATTEMPTS, GEMINI_TIME_BUDGET_MS);
   } catch (err) {
     // Every model rejecting a request with images at once usually means
     // the request is too heavy, not that Gemini is down — the text alone
     // still carries most newsletters' schedule.
-    if (!err.transient || mediaParts.length === 0) throw err;
+    if (!err.transient || !hasMedia) throw err;
     Logger.log('Retrying with the email text only (no images)…');
     raw = callGemini_(apiKey, [{ text }], 2, GEMINI_TIME_BUDGET_MS);
     raw.textOnly = true;
   }
+
+  // Remaining image batches, each its own request so no single call is big.
+  // A batch that fails is skipped (its posters are missed) rather than
+  // throwing away what the earlier batches already found.
+  let skippedBatches = 0;
+  if (!raw.textOnly && raw.isWeeklySchedule === true) {
+    for (let b = 1; b < batches.length; b++) {
+      const batchText = text + `\n\n(Images are sent in several requests. This request holds part ${b + 1} of ${batches.length} of the images; extract from the email text and these images as usual — anything already found in other parts is merged afterwards.)`;
+      try {
+        Logger.log(`Image batch ${b + 1}/${batches.length}…`);
+        const extra = callGemini_(apiKey, [{ text: batchText }].concat(batches[b].parts), 2, GEMINI_IMAGE_BUDGET_MS);
+        mergeBatchResult_(raw, extra);
+      } catch (err) {
+        if (!err.transient) throw err;
+        skippedBatches++;
+        Logger.log(`Image batch ${b + 1} skipped: ${err.message}`);
+      }
+    }
+  }
+  raw.skippedBatches = skippedBatches;
   const parsed = normalizeParsed_(raw, message.getDate());
   // Strict: a missing or non-boolean answer counts as "not the schedule".
   parsed.isWeeklySchedule = raw.isWeeklySchedule === true;
@@ -595,6 +652,7 @@ function parseNewsletterMessage_(message, apiKey, token) {
     a.matchesText = match ? match.text : null;
   });
   parsed.textOnly = !!raw.textOnly;
+  parsed.skippedBatches = raw.skippedBatches || 0;
   parsed.posters = parsed.textOnly ? [] : matchPosters_(raw.posters, media.images);
   return parsed;
 }
@@ -927,7 +985,8 @@ function publishParsed_(parsed, message, token) {
     (parsed.saying ? ', saying of the week updated' : '') +
     (posterResult.renewed ? `, ${posterResult.renewed} renewed` : '') +
     (posterResult.failed ? `, ${posterResult.failed} poster upload(s) failed` : '') +
-    (parsed.textOnly ? ' — text only, flyer images were skipped' : '');
+    (parsed.textOnly ? ' — text only, flyer images were skipped' : '') +
+    (parsed.skippedBatches ? ` — ${parsed.skippedBatches} image batch(es) skipped (Gemini busy), some posters may be missing` : '');
 }
 
 // Adds each poster to the ad reel, expiring after POSTER_EXPIRY_DAYS.

@@ -1,0 +1,93 @@
+// Firestore security rules — paste into Firebase Console > Firestore Database > Rules
+// (README Part 1, step 5). Kept here as the single source of truth.
+//
+// Admins are the Firebase Auth users that have a document at admins/{uid}
+// (created by hand in the console — see README). Everyone else who signs in
+// is a client from portal.html and can only touch their own client profile
+// and submissions. Service accounts (newsletter + WhatsApp bots) bypass these
+// rules entirely.
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isApprovedClient() {
+      return isSignedIn()
+        && get(/databases/$(database)/documents/clients/$(request.auth.uid)).data.status == 'approved';
+    }
+
+    // Admin marker docs. Users may read only their own (admin.js checks it
+    // after sign-in); nobody can write them from the app.
+    match /admins/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Client accounts from the portal. A new client can only create their own
+    // doc, and only as "pending"; approving/rejecting is admin-only.
+    match /clients/{uid} {
+      allow read: if isAdmin() || (isSignedIn() && request.auth.uid == uid);
+      allow create: if isSignedIn() && request.auth.uid == uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['name', 'organization', 'email', 'phone', 'status', 'createdAt']);
+      allow update, delete: if isAdmin();
+    }
+
+    // Posters/videos clients ask to have on the ad reel.
+    match /submissions/{submissionId} {
+      allow read: if isAdmin() || (isSignedIn() && resource.data.clientUid == request.auth.uid);
+      allow create: if isApprovedClient()
+        && request.resource.data.clientUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['clientUid', 'clientName', 'organization', 'title', 'notes',
+             'url', 'type', 'bytes', 'requestedStart', 'requestedEnd', 'replacesId', 'status', 'createdAt']);
+      // A client may only withdraw their own submission while it's pending.
+      allow update: if isAdmin()
+        || (isSignedIn() && resource.data.clientUid == request.auth.uid
+            && resource.data.status == 'pending'
+            && request.resource.data.status == 'withdrawn'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt']));
+      allow delete: if isAdmin();
+    }
+
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /hub_content/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    match /programs/{date} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Holds the Gemini API key — admins only.
+    match /admin_config/{docId} {
+      allow read, write: if isAdmin();
+    }
+    // "Hub opens" counter: the kiosk isn't signed in, so it may only
+    // add 1 to today's count. Admins can delete days to reset it.
+    match /hub_taps/{day} {
+      allow read: if true;
+      allow create: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.keys().hasOnly(['count'])
+        && request.resource.data.count == 1;
+      allow update: if request.resource.data.keys().hasOnly(['count'])
+        && request.resource.data.count == resource.data.count + 1;
+      allow delete: if isAdmin();
+    }
+  }
+}

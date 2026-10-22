@@ -163,8 +163,41 @@ document.querySelectorAll('.js-logout').forEach(btn => btn.addEventListener('cli
 
 let appStarted = false;
 
-auth.onAuthStateChanged(user => {
+// Client-portal users share this Firebase Auth project, so being signed in
+// isn't enough: an admin has a document at admins/{uid} (made by hand in the
+// Firebase console, see README). The real protection is firestore.rules —
+// this just keeps clients out of the admin screens.
+async function checkIsAdmin(user) {
+  try {
+    const doc = await db.collection('admins').doc(user.uid).get();
+    return doc.exists;
+  } catch (err) {
+    // Rules published before the admins collection existed deny this read.
+    // Let the user in so an upgrade can't lock everyone out; once the new
+    // rules are live the check above decides.
+    if (err.code === 'permission-denied') {
+      console.warn('admins/{uid} is unreadable — publish the rules from firestore.rules.');
+      return true;
+    }
+    throw err;
+  }
+}
+
+auth.onAuthStateChanged(async user => {
   if (user) {
+    let isAdmin = false;
+    try {
+      isAdmin = await checkIsAdmin(user);
+    } catch (err) {
+      $('login-error').textContent = 'Could not verify admin access: ' + err.message;
+      await auth.signOut();
+      return;
+    }
+    if (!isAdmin) {
+      $('login-error').textContent = 'This account isn\'t an admin. Clients sign in at portal.html.';
+      await auth.signOut();
+      return;
+    }
     $('login-screen').classList.add('hidden');
     $('app').classList.remove('hidden');
     document.querySelectorAll('.js-username').forEach(el => { el.textContent = (user.email || '').split('@')[0]; });
@@ -183,6 +216,7 @@ auth.onAuthStateChanged(user => {
 function startApp() {
   renderHomeDate();
   loadAdList();
+  loadClientReview();
   loadSaying();
   loadAnnouncements();
   loadProgramsAdmin();
@@ -942,6 +976,7 @@ function loadAdList() {
     adsLoaded = true;
     renderAdList();
     renderHomeReel();
+    renderClientReview(); // "removed from reel" badges depend on the ads list
   });
 }
 
@@ -1170,6 +1205,372 @@ $('btn-save-slide').addEventListener('click', () => {
       showToast('Slide saved.', 'success');
     })
     .catch(err => showToast('Error: ' + err.message, 'error'));
+});
+
+/* ============================================================
+   CLIENT PORTAL REVIEW — tabs on the Ad Reel page.
+   clients/{uid}      account approval (pending -> approved / rejected / suspended)
+   submissions/{id}   posters & videos clients sent in; approving one writes a
+                      normal `ads` doc (source: "client") and links it back.
+   Both collections are small, so each is loaded whole and filtered here
+   (no composite indexes needed).
+   ============================================================ */
+let clientSubmissions = null; // null = loading, 'unreadable' = rules block it
+let clientAccounts = null;
+let reelTab = 'slides';
+let submissionFilter = 'pending';
+let clientFilter = 'pending';
+
+function loadClientReview() {
+  db.collection('submissions').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+    clientSubmissions = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+    renderClientReview();
+  }, () => {
+    clientSubmissions = 'unreadable';
+    renderClientReview();
+  });
+  db.collection('clients').orderBy('createdAt', 'desc').onSnapshot(snapshot => {
+    clientAccounts = snapshot.docs.map(doc => ({ id: doc.id, data: doc.data() }));
+    renderClientReview();
+  }, () => {
+    clientAccounts = 'unreadable';
+    renderClientReview();
+  });
+}
+
+function showReelTab(name) {
+  reelTab = name;
+  document.querySelectorAll('#reel-tabs .tab-btn').forEach(b => {
+    const active = b.dataset.tab === name;
+    b.classList.toggle('active', active);
+    b.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('[data-tab-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.tabPanel !== name));
+}
+
+$('reel-tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn');
+  if (btn) showReelTab(btn.dataset.tab);
+});
+
+$('sub-filters').addEventListener('click', e => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  submissionFilter = chip.dataset.filter;
+  renderClientReview();
+});
+
+$('client-filters').addEventListener('click', e => {
+  const chip = e.target.closest('.filter-chip');
+  if (!chip) return;
+  clientFilter = chip.dataset.filter;
+  renderClientReview();
+});
+
+const SUBMISSION_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', all: 'All' };
+const CLIENT_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', suspended: 'Suspended / declined', all: 'All' };
+
+function matchesClientFilter(client, filter) {
+  if (filter === 'all') return true;
+  if (filter === 'suspended') return client.status === 'suspended' || client.status === 'rejected';
+  return client.status === filter;
+}
+
+function renderClientReview() {
+  const subsOk = Array.isArray(clientSubmissions);
+  const clientsOk = Array.isArray(clientAccounts);
+  const pendingSubs = subsOk ? clientSubmissions.filter(s => s.data.status === 'pending').length : 0;
+  const pendingClients = clientsOk ? clientAccounts.filter(c => c.data.status === 'pending').length : 0;
+
+  // Counts: red when something needs a decision
+  const subCount = $('tab-count-submissions');
+  subCount.textContent = pendingSubs || '';
+  subCount.classList.toggle('has-pending', pendingSubs > 0);
+  const clientCount = $('tab-count-clients');
+  clientCount.textContent = pendingClients || '';
+  clientCount.classList.toggle('has-pending', pendingClients > 0);
+  const badge = $('nav-reel-badge');
+  const total = pendingSubs + pendingClients;
+  badge.textContent = total;
+  badge.classList.toggle('hidden', total === 0);
+
+  renderSubmissionList();
+  renderClientList();
+}
+
+function reviewPlaceholder(loadedValue, emptyMessage) {
+  if (loadedValue === null) return '<div class="loading-state"><div class="spinner"></div>Loading…</div>';
+  if (loadedValue === 'unreadable') {
+    return '<div class="empty-state"><div class="empty-state-icon">🔒</div><p>Can\'t read this yet. Publish the rules from <code>firestore.rules</code> and make sure your account has an <code>admins</code> document (see README).</p></div>';
+  }
+  return `<div class="empty-state"><div class="empty-state-icon">📭</div><p>${emptyMessage}</p></div>`;
+}
+
+function shortDate(iso) {
+  return parseIsoDateLocal(iso).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function renderSubmissionList() {
+  const listEl = $('submission-list');
+  if (!Array.isArray(clientSubmissions)) {
+    listEl.innerHTML = reviewPlaceholder(clientSubmissions, '');
+    return;
+  }
+  document.querySelectorAll('#sub-filters .filter-chip').forEach(chip => {
+    const f = chip.dataset.filter;
+    chip.classList.toggle('active', f === submissionFilter);
+    const n = clientSubmissions.filter(s => f === 'all' || s.data.status === f).length;
+    chip.innerHTML = `${SUBMISSION_FILTER_LABELS[f]}<span class="count">${n}</span>`;
+  });
+
+  const rows = clientSubmissions.filter(s => submissionFilter === 'all' || s.data.status === submissionFilter);
+  if (rows.length === 0) {
+    listEl.innerHTML = reviewPlaceholder(clientSubmissions, submissionFilter === 'pending' ? 'Nothing waiting for review.' : 'No submissions here.');
+    return;
+  }
+  listEl.innerHTML = '';
+  rows.forEach(({ id, data: sub }) => {
+    const row = document.createElement('div');
+    row.className = 'slide-row is-review';
+
+    const chips = [];
+    if (sub.status === 'pending') chips.push('<span class="chip chip-amber">Pending review</span>');
+    else if (sub.status === 'approved') {
+      const adExists = !adsLoaded || currentAdDocs.some(d => d.id === sub.adId);
+      chips.push(adExists ? '<span class="chip chip-green">Approved</span>' : '<span class="chip chip-grey">Approved · removed from reel</span>');
+    }
+    else if (sub.status === 'rejected') chips.push('<span class="chip chip-red">Rejected</span>');
+    else if (sub.status === 'withdrawn') chips.push('<span class="chip chip-grey">Withdrawn by client</span>');
+    chips.push(`<span class="chip">${sub.type === 'video' ? 'Video' : 'Image'}${sub.bytes ? ' · ' + formatBytes(sub.bytes) : ''}</span>`);
+    if (sub.replacesId) chips.push('<span class="chip chip-blue">Fixed version</span>');
+    if (sub.requestedStart || sub.requestedEnd) {
+      chips.push(`<span class="chip chip-gold">Wants ${sub.requestedStart ? shortDate(sub.requestedStart) : 'any time'} → ${sub.requestedEnd ? shortDate(sub.requestedEnd) : 'open-ended'}</span>`);
+    }
+    if (sub.status === 'approved' && sub.expiresAt) chips.push(`<span class="chip">Until ${sub.expiresAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>`);
+
+    const sent = sub.createdAt ? ' · ' + timeAgo(sub.createdAt.toDate()) : '';
+    const who = `${escapeHtml(sub.clientName || 'Unknown client')}${sub.organization ? ' · ' + escapeHtml(sub.organization) : ''}${sent}`;
+
+    let actions = '';
+    if (sub.status === 'pending') {
+      actions = `<div class="review-actions">
+        <button type="button" class="btn btn-primary btn-sm act-approve">Approve…</button>
+        <button type="button" class="btn btn-danger btn-sm act-reject">Reject…</button>
+      </div>`;
+    }
+
+    row.innerHTML = `
+      <button type="button" class="slide-thumb" title="View full size" aria-label="View full size">
+        ${sub.type === 'video'
+          ? `<video src="${escapeHtml(sub.url)}" muted preload="metadata"></video><span class="thumb-badge">▶</span>`
+          : `<img src="${escapeHtml(sub.url)}" alt="" loading="lazy">`}
+      </button>
+      <div class="review-body">
+        <div class="slide-title">${sub.title ? escapeHtml(sub.title) : '<span class="muted">Untitled</span>'}</div>
+        <div class="review-who">${who}</div>
+        <div class="chips">${chips.join('')}</div>
+        ${sub.notes ? `<div class="review-notes">${escapeHtml(sub.notes)}</div>` : ''}
+        ${sub.status === 'rejected' && sub.rejectReason ? `<div class="review-who">Reason given: ${escapeHtml(sub.rejectReason)}</div>` : ''}
+        ${actions}
+      </div>
+    `;
+
+    row.querySelector('.slide-thumb').addEventListener('click', () => openPreview(sub));
+    const approve = row.querySelector('.act-approve');
+    if (approve) approve.addEventListener('click', () => openApproveDialog(id));
+    const reject = row.querySelector('.act-reject');
+    if (reject) reject.addEventListener('click', () => openRejectDialog({
+      collection: 'submissions', id, status: 'rejected',
+      heading: 'Reject submission',
+      summary: `"${sub.title || 'Untitled'}" from ${sub.clientName || 'a client'}. They'll see your reason and can send a fixed version.`
+    }));
+    listEl.appendChild(row);
+  });
+}
+
+function renderClientList() {
+  const listEl = $('client-list');
+  if (!Array.isArray(clientAccounts)) {
+    listEl.innerHTML = reviewPlaceholder(clientAccounts, '');
+    return;
+  }
+  document.querySelectorAll('#client-filters .filter-chip').forEach(chip => {
+    const f = chip.dataset.filter;
+    chip.classList.toggle('active', f === clientFilter);
+    const n = clientAccounts.filter(c => matchesClientFilter(c.data, f)).length;
+    chip.innerHTML = `${CLIENT_FILTER_LABELS[f]}<span class="count">${n}</span>`;
+  });
+
+  const rows = clientAccounts.filter(c => matchesClientFilter(c.data, clientFilter));
+  if (rows.length === 0) {
+    listEl.innerHTML = reviewPlaceholder(clientAccounts, clientFilter === 'pending' ? 'No accounts waiting for approval.' : 'No accounts here.');
+    return;
+  }
+  listEl.innerHTML = '';
+  rows.forEach(({ id, data: client }) => {
+    const row = document.createElement('div');
+    row.className = 'slide-row is-review';
+
+    const statusChip = {
+      pending: '<span class="chip chip-amber">Waiting for approval</span>',
+      approved: '<span class="chip chip-green">Approved</span>',
+      rejected: '<span class="chip chip-red">Declined</span>',
+      suspended: '<span class="chip chip-grey">Suspended</span>'
+    }[client.status] || '';
+    const sent = client.createdAt ? 'Signed up ' + timeAgo(client.createdAt.toDate()) : '';
+    const details = [client.email, client.phone, sent].filter(Boolean).map(escapeHtml).join(' · ');
+
+    const buttons = [];
+    if (client.status === 'pending') {
+      buttons.push('<button type="button" class="btn btn-primary btn-sm act-approve">Approve</button>');
+      buttons.push('<button type="button" class="btn btn-danger btn-sm act-decline">Decline…</button>');
+    } else if (client.status === 'approved') {
+      buttons.push('<button type="button" class="btn btn-danger btn-sm act-suspend">Suspend…</button>');
+    } else {
+      buttons.push(`<button type="button" class="btn btn-secondary btn-sm act-approve">${client.status === 'suspended' ? 'Reinstate' : 'Approve'}</button>`);
+    }
+
+    row.innerHTML = `
+      <div class="review-body">
+        <div class="slide-title">${escapeHtml(client.name || 'Unnamed')}${client.organization ? ` <span class="muted">· ${escapeHtml(client.organization)}</span>` : ''}</div>
+        <div class="review-who">${details}</div>
+        <div class="chips">${statusChip}</div>
+        ${client.rejectReason && client.status !== 'approved' ? `<div class="review-who">Reason given: ${escapeHtml(client.rejectReason)}</div>` : ''}
+        <div class="review-actions">${buttons.join('')}</div>
+      </div>
+    `;
+
+    const approve = row.querySelector('.act-approve');
+    if (approve) approve.addEventListener('click', () => {
+      db.collection('clients').doc(id).update({
+        status: 'approved',
+        rejectReason: firebase.firestore.FieldValue.delete(),
+        reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+      }).then(() => showToast(`${client.name || 'Client'} can now submit slides.`, 'success'))
+        .catch(err => showToast('Error: ' + err.message, 'error'));
+    });
+    const decline = row.querySelector('.act-decline');
+    if (decline) decline.addEventListener('click', () => openRejectDialog({
+      collection: 'clients', id, status: 'rejected',
+      heading: 'Decline account',
+      summary: `${client.name || 'This person'} won't be able to submit anything. They'll see your reason when they sign in.`
+    }));
+    const suspend = row.querySelector('.act-suspend');
+    if (suspend) suspend.addEventListener('click', () => openRejectDialog({
+      collection: 'clients', id, status: 'suspended',
+      heading: 'Suspend account',
+      summary: `${client.name || 'This client'} won't be able to submit new slides until you reinstate them. Slides already on the reel stay.`
+    }));
+    listEl.appendChild(row);
+  });
+}
+
+/* ── Approve a submission -> becomes an `ads` doc ── */
+let approvingId = null;
+
+function openApproveDialog(id) {
+  const item = (Array.isArray(clientSubmissions) ? clientSubmissions : []).find(s => s.id === id);
+  if (!item) return;
+  const sub = item.data;
+  approvingId = id;
+  const notes = [`From ${sub.clientName || 'a client'}${sub.organization ? ' (' + sub.organization + ')' : ''}.`];
+  if (sub.requestedStart || sub.requestedEnd) {
+    notes.push(`They asked for ${sub.requestedStart ? shortDate(sub.requestedStart) : 'any time'} → ${sub.requestedEnd ? shortDate(sub.requestedEnd) : 'open-ended'}.`);
+    if (sub.requestedStart && daysFromToday(parseIsoDateLocal(sub.requestedStart)) > 0) {
+      notes.push('The reel has no start dates — it goes live as soon as you approve, so you may want to approve closer to their start date.');
+    }
+  }
+  $('approve-summary').textContent = notes.join(' ');
+  $('approve-title').value = sub.title || '';
+  $('approve-duration').value = 8;
+  $('approve-duration-field').classList.toggle('hidden', sub.type === 'video');
+  // End of the reel by default; drag to reorder afterwards.
+  $('approve-order').value = currentAdDocs.reduce((max, d) => Math.max(max, d.data.order || 0), 0) + 1;
+  $('approve-expiry').value = sub.requestedEnd || '';
+  openDialog('dlg-approve');
+}
+
+$('btn-confirm-approve').addEventListener('click', async () => {
+  const item = (Array.isArray(clientSubmissions) ? clientSubmissions : []).find(s => s.id === approvingId);
+  if (!item) return;
+  const sub = item.data;
+  const button = $('btn-confirm-approve');
+  const duration = parseInt($('approve-duration').value, 10) || 8;
+  const order = parseInt($('approve-order').value, 10) || 1;
+  const expiryValue = $('approve-expiry').value;
+  let expiresAt = null;
+  if (expiryValue) {
+    const [y, m, d] = expiryValue.split('-').map(Number);
+    expiresAt = firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59));
+  }
+
+  const adRef = db.collection('ads').doc();
+  const adDoc = {
+    url: sub.url,
+    type: sub.type,
+    title: $('approve-title').value.trim() || sub.title || '',
+    duration, order,
+    active: true,
+    source: 'client',
+    submissionId: approvingId,
+    clientUid: sub.clientUid,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (expiresAt) adDoc.expiresAt = expiresAt;
+
+  const subUpdate = {
+    status: 'approved',
+    adId: adRef.id,
+    duration,
+    liveFrom: firebase.firestore.FieldValue.serverTimestamp(),
+    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  if (expiresAt) subUpdate.expiresAt = expiresAt;
+
+  button.disabled = true;
+  try {
+    const batch = db.batch();
+    batch.set(adRef, adDoc);
+    batch.update(db.collection('submissions').doc(approvingId), subUpdate);
+    await batch.commit();
+    closeDialog('dlg-approve');
+    showToast('Approved — it\'s on the reel now.', 'success');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/* ── Reject a submission / decline or suspend an account (reason shown to the client) ── */
+let rejectTarget = null;
+
+function openRejectDialog(target) {
+  rejectTarget = target;
+  $('reject-heading').textContent = target.heading;
+  $('reject-summary').textContent = target.summary;
+  $('reject-reason').value = '';
+  $('btn-confirm-reject').textContent = target.heading.split(' ')[0];
+  openDialog('dlg-reject');
+}
+
+$('btn-confirm-reject').addEventListener('click', async () => {
+  if (!rejectTarget) return;
+  const { collection, id, status } = rejectTarget;
+  const reason = $('reject-reason').value.trim();
+  const update = { status, reviewedAt: firebase.firestore.FieldValue.serverTimestamp() };
+  update.rejectReason = reason || firebase.firestore.FieldValue.delete();
+  const button = $('btn-confirm-reject');
+  button.disabled = true;
+  try {
+    await db.collection(collection).doc(id).update(update);
+    closeDialog('dlg-reject');
+    showToast(collection === 'submissions' ? 'Submission rejected.' : 'Account updated.', 'success');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
 });
 
 /* ============================================================

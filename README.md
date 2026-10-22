@@ -24,58 +24,28 @@ admin page instead of needing to touch GitHub every time you add an ad.
      password. This is what you'll use to log into the admin page.
 4. In the left sidebar, click **Build > Firestore Database** → **Create
    database** → start in **production mode** → pick a location close to you.
-5. Click the **Rules** tab in Firestore and replace the contents with:
+5. **Mark yourself as an admin.** Clients from the portal share this
+   Firebase project's sign-in, so being signed in no longer means "admin".
+   In **Firestore Database > Data**, click **Start collection**, name it
+   `admins`, and use your admin user's **User UID** (copy it from
+   **Authentication > Users**) as the **Document ID**. The document needs
+   at least one field — add `admin` (boolean) = `true`. Repeat for every
+   admin account.
+6. Click the **Rules** tab in Firestore and replace the contents with the
+   contents of **`firestore.rules`** from this repo, then **Publish**.
+   This means: anyone can *view* the ads and hub content (needed for the
+   kiosk to work), only admins can *change* anything, and portal clients can
+   only manage their own account and submissions.
+   **Order matters:** do step 5 before publishing, or you'll lock yourself out.
 
-   ```
-   rules_version = '2';
-   service cloud.firestore {
-     match /databases/{database}/documents {
-       match /ads/{adId} {
-         allow read: if true;
-         allow write: if request.auth != null;
-       }
-       match /hub_content/{docId} {
-         allow read: if true;
-         allow write: if request.auth != null;
-       }
-       match /settings/{docId} {
-         allow read: if true;
-         allow write: if request.auth != null;
-       }
-       match /programs/{date} {
-         allow read: if true;
-         allow write: if request.auth != null;
-       }
-       match /admin_config/{docId} {
-         allow read: if request.auth != null;
-         allow write: if request.auth != null;
-       }
-       // "Hub opens" counter: the kiosk isn't signed in, so it may only
-       // add 1 to today's count. Admins can delete days to reset it.
-       match /hub_taps/{day} {
-         allow read: if true;
-         allow create: if day.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
-           && request.resource.data.keys().hasOnly(['count'])
-           && request.resource.data.count == 1;
-         allow update: if request.resource.data.keys().hasOnly(['count'])
-           && request.resource.data.count == resource.data.count + 1;
-         allow delete: if request.auth != null;
-       }
-     }
-   }
-   ```
-   Click **Publish**. This means: anyone can *view* the ads and hub content
-   (needed for the kiosk to work), but only someone signed in (you) can
-   *change* anything.
-
-6. **Skip Firebase Storage.** As of early 2026, Google requires linking a
+7. **Skip Firebase Storage.** As of early 2026, Google requires linking a
    credit card (the "Blaze" plan) just to turn Storage on — even though
    actual usage would stay free. We're using a different, genuinely
    free-with-no-card service (Cloudinary) for the photo/video files
    instead, covered in Part 1b below. Firestore and Authentication above
    are unaffected and stay completely free.
 
-7. Now get your config keys: click the **gear icon > Project settings**
+8. Now get your config keys: click the **gear icon > Project settings**
    (top left), scroll to **Your apps**, click the **</>** (web) icon,
    give it any nickname, click **Register app**. Firebase shows you a code
    block with a `firebaseConfig` object — copy those values into
@@ -133,6 +103,7 @@ until you do.
    `https://yourusername.github.io/masjid-kiosk/`
    - The kiosk display uses: `.../masjid-kiosk/index.html`
    - You (for uploading ads) use: `.../masjid-kiosk/admin.html`
+   - Clients (to submit posters for review) use: `.../masjid-kiosk/portal.html`
 
 ---
 
@@ -145,6 +116,18 @@ until you do.
    **Upload**.
 4. It shows up on the kiosk automatically — no refresh needed.
 5. You can toggle any ad on/off, or delete it, from the same page.
+
+### Client portal (optional)
+
+Share `portal.html` with businesses or groups who want a poster/video on the
+screen. They create an account (email + password), and **nothing works until
+you approve them**: open admin → **Ad Reel → Client accounts** (a red number
+on the Ad Reel tab shows what's waiting). Approved clients can upload an
+image or video; you review it under **Ad Reel → Client submissions**, where
+**Approve** lets you set the duration, position and end date before it goes
+on the reel, and **Reject** sends your reason back to them. Clients see
+Under review / Approved / Not approved on their dashboard and can withdraw a
+pending submission or send a fixed version after a rejection.
 
 **A note on video files:** Cloudinary's free plan gives you roughly
 25 GB/month shared across storage and bandwidth, and each loop of the ad

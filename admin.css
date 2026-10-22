@@ -1087,6 +1087,78 @@ dialog.modal-preview .preview-stage { width: min(80vw, calc((100vh - 9rem) * 0.5
 .progress-bar-fill { height: 100%; width: 0; background: var(--gold); transition: width 0.2s ease; }
 
 /* ============================================================
+   AD REEL TABS + CLIENT REVIEW
+   ============================================================ */
+.tab-strip {
+  display: flex;
+  gap: 0.3rem;
+  margin-bottom: 1.6rem;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+.tab-btn {
+  border: 0;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  color: var(--muted);
+  font: 600 0.92rem 'Inter', sans-serif;
+  padding: 0.7rem 1rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.tab-btn:hover { color: var(--text); }
+.tab-btn.active { color: var(--gold-text); border-bottom-color: var(--gold); }
+
+.tab-btn .count {
+  display: inline-block;
+  min-width: 1.35rem;
+  margin-left: 0.4rem;
+  padding: 0.12rem 0.4rem;
+  border-radius: 999px;
+  background: #F1EEE6;
+  color: var(--muted);
+  font-size: 0.75rem;
+  text-align: center;
+}
+
+.tab-btn .count.has-pending { background: var(--danger); color: #fff; }
+.tab-btn .count:empty { display: none; }
+
+/* Pending-review count on the Ad Reel nav item */
+.nav-badge {
+  position: absolute;
+  right: 0.7rem;
+  top: 50%;
+  min-width: 1.3rem;
+  margin-top: -0.65rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.slide-row.is-review { align-items: flex-start; }
+.review-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.review-who { font-size: 0.85rem; color: var(--muted); }
+.review-notes {
+  font-size: 0.88rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.7rem;
+  white-space: pre-wrap;
+}
+.review-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.2rem; }
+.chip-grey { background: #ECE8DC; color: var(--muted); }
+
+/* ============================================================
    TOASTS & UNSAVED BAR
    ============================================================ */
 #toast-container {
@@ -1222,6 +1294,7 @@ body.has-dirty-bar #toast-container { bottom: 5.5rem; }
   .nav-link.active { background: transparent; }
   .nav-link.active::before { left: 25%; right: 25%; top: 0; bottom: auto; width: auto; height: 3px; border-radius: 0 0 3px 3px; }
   .nav-link.has-unsaved::after { top: 0.6rem; right: 30%; margin-top: 0; }
+  .nav-badge { top: 0.35rem; right: 18%; margin-top: 0; min-width: 1.1rem; font-size: 0.65rem; padding: 0.1rem 0.3rem; }
 
   .main { padding: 1.3rem 1rem calc(var(--bottom-nav-h) + 6rem); }
 
