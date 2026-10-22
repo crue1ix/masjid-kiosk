@@ -2,9 +2,8 @@
 // (README Part 1, step 5). Kept here as the single source of truth.
 //
 // Admins are the Firebase Auth users that have a document at admins/{uid}
-// (created by hand in the console — see README). Everyone else who signs in
-// is a client from portal.html and can only touch their own client profile
-// and submissions. Service accounts (newsletter + WhatsApp bots) bypass these
+// (created by hand in the console — see README). portal.html is a public form:
+// anyone can add a pending submission without signing in. Service accounts (newsletter + WhatsApp bots) bypass these
 // rules entirely.
 rules_version = '2';
 service cloud.firestore {
@@ -41,29 +40,24 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // Posters/videos clients ask to have on the ad reel.
+    // Posters/videos sent from the public form in portal.html — no sign-in
+    // needed. Anyone may add a "pending" submission (field sizes capped, file
+    // hosted on Cloudinary); only admins can read, change or delete them.
     match /submissions/{submissionId} {
-      allow read: if isAdmin() || (isSignedIn() && resource.data.clientUid == request.auth.uid);
-      allow create: if isApprovedClient()
-        && request.resource.data.clientUid == request.auth.uid
-        && request.resource.data.status == 'pending'
-        && request.resource.data.keys().hasOnly(['clientUid', 'clientName', 'organization', 'title', 'notes',
-             'url', 'type', 'bytes', 'requestedStart', 'requestedEnd', 'replacesId', 'status', 'createdAt']);
-      // A client may withdraw their own submission while it's pending (but not
-      // once a slide is live from it), or — after an admin asks for edits on an
-      // approved one — send a revised version, which puts it back to pending.
-      allow update: if isAdmin()
-        || (isSignedIn() && resource.data.clientUid == request.auth.uid
-            && resource.data.status == 'pending'
-            && !('adId' in resource.data)
-            && request.resource.data.status == 'withdrawn'
-            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'withdrawnAt']))
-        || (isSignedIn() && resource.data.clientUid == request.auth.uid
-            && resource.data.status == 'changes_requested'
-            && request.resource.data.status == 'pending'
-            && request.resource.data.diff(resource.data).affectedKeys()
-                 .hasOnly(['status', 'url', 'type', 'bytes', 'title', 'notes', 'requestedStart', 'requestedEnd', 'revisedAt']));
-      allow delete: if isAdmin();
+      allow read: if isAdmin();
+      allow create: if request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['clientName', 'organization', 'email', 'phone', 'title', 'notes',
+             'url', 'type', 'bytes', 'requestedStart', 'requestedEnd', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['clientName', 'email', 'title', 'url', 'type', 'status', 'createdAt'])
+        && request.resource.data.clientName is string && request.resource.data.clientName.size() <= 80
+        && request.resource.data.email is string && request.resource.data.email.size() <= 120
+        && request.resource.data.title is string && request.resource.data.title.size() <= 80
+        && request.resource.data.get('organization', '').size() <= 80
+        && request.resource.data.get('notes', '').size() <= 500
+        && request.resource.data.url is string
+        && request.resource.data.url.matches('^https://res\.cloudinary\.com/.*')
+        && request.resource.data.type in ['image', 'video'];
+      allow update, delete: if isAdmin();
     }
 
     match /ads/{adId} {

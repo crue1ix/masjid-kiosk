@@ -1383,7 +1383,7 @@ function renderSubmissionList() {
     }
 
     const sent = sub.createdAt ? ' · ' + timeAgo(sub.createdAt.toDate()) : '';
-    const who = `${escapeHtml(sub.clientName || 'Unknown client')}${sub.organization ? ' · ' + escapeHtml(sub.organization) : ''}${sent}`;
+    const who = `${escapeHtml(sub.clientName || 'Unknown client')}${sub.organization ? ' · ' + escapeHtml(sub.organization) : ''}${sub.email ? ' · ' + escapeHtml(sub.email) : ''}${sub.phone ? ' · ' + escapeHtml(sub.phone) : ''}${sent}`;
 
     let actions = '';
     if (sub.status === 'pending') {
@@ -1391,7 +1391,7 @@ function renderSubmissionList() {
         <button type="button" class="btn btn-primary btn-sm act-approve">${isRevision ? 'Approve revision…' : 'Approve…'}</button>
         <button type="button" class="btn btn-danger btn-sm act-reject">Reject…</button>
       </div>`;
-    } else if (sub.status === 'approved' && adExists) {
+    } else if (sub.status === 'approved' && adExists && sub.clientUid) { // no account = nowhere to send an edit request
       actions = `<div class="review-actions">
         <button type="button" class="btn btn-secondary btn-sm act-request-edits">Request edits…</button>
       </div>`;
@@ -1584,9 +1584,9 @@ $('btn-confirm-approve').addEventListener('click', async () => {
       source: 'client',
       clientName: clientLabel,
       submissionId: approvingId,
-      clientUid: sub.clientUid,
       createdAt: FieldValue.serverTimestamp()
     };
+    if (sub.clientUid) adDoc.clientUid = sub.clientUid; // public-form submissions have none
     if (startsAt) adDoc.startsAt = startsAt;
     if (expiresAt) adDoc.expiresAt = expiresAt;
     batch.set(adRef, adDoc);

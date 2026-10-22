@@ -4,201 +4,96 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Client Portal</title>
-<link rel="stylesheet" href="admin.css?v=4.4">
-<link rel="stylesheet" href="portal.css?v=4.4">
+<link rel="stylesheet" href="admin.css?v=4.5">
+<link rel="stylesheet" href="portal.css?v=4.5">
 </head>
 <body>
 
-<!-- ============================================================
-     SIGN IN / CREATE ACCOUNT
-     ============================================================ -->
-<div class="login-screen" id="auth-screen">
-  <div class="login-card">
+<div class="portal-public">
+  <div class="login-card submit-card">
     <img src="assets/Al-Hayy Logo.png" class="login-logo" alt="">
-    <h1>Client Portal</h1>
-    <p>Submit a poster or video to appear on the <span class="js-masjid-name"></span> screen, and follow its progress.</p>
+    <h1>Submit a poster or video</h1>
+    <p>Send us something to show on the <span class="js-masjid-name"></span> screen. The masjid reviews every submission before it goes up, and will contact you using the details below.</p>
 
-    <div class="auth-tabs" role="tablist">
-      <button type="button" class="auth-tab active" id="tab-signin" role="tab" aria-selected="true">Sign in</button>
-      <button type="button" class="auth-tab" id="tab-signup" role="tab" aria-selected="false">Create account</button>
-    </div>
-
-    <form id="signin-form">
+    <form id="submit-form" novalidate>
       <div class="field">
-        <label for="signin-email">Email</label>
-        <input type="email" id="signin-email" autocomplete="email" autocapitalize="none" required>
-      </div>
-      <div class="field">
-        <label for="signin-password">Password</label>
-        <input type="password" id="signin-password" autocomplete="current-password" required>
-      </div>
-      <button class="btn btn-primary btn-block" id="btn-signin" type="submit">Sign in</button>
-      <button class="btn btn-ghost btn-sm" id="btn-reset-password" type="button" style="margin-top:0.6rem">Forgot your password?</button>
-    </form>
-
-    <form id="signup-form" class="hidden">
-      <div class="field">
-        <label for="signup-name">Your name</label>
-        <input type="text" id="signup-name" autocomplete="name" required>
-      </div>
-      <div class="field">
-        <label for="signup-org">Business / organization <span class="muted">(optional)</span></label>
-        <input type="text" id="signup-org" autocomplete="organization">
-      </div>
-      <div class="field">
-        <label for="signup-phone">Phone <span class="muted">(optional)</span></label>
-        <input type="tel" id="signup-phone" autocomplete="tel">
-      </div>
-      <div class="field">
-        <label for="signup-email">Email</label>
-        <input type="email" id="signup-email" autocomplete="email" autocapitalize="none" required>
-      </div>
-      <div class="field">
-        <label for="signup-password">Password</label>
-        <input type="password" id="signup-password" autocomplete="new-password" minlength="6" required>
-        <p class="field-hint">At least 6 characters.</p>
-      </div>
-      <button class="btn btn-primary btn-block" id="btn-signup" type="submit">Create account</button>
-      <p class="field-hint" style="margin-top:0.8rem">New accounts are reviewed by the masjid before you can submit anything.</p>
-    </form>
-
-    <div class="form-error" id="auth-error"></div>
-  </div>
-</div>
-
-<!-- ============================================================
-     ACCOUNT GATE (pending / declined / suspended)
-     ============================================================ -->
-<div class="login-screen hidden" id="gate-screen">
-  <div class="login-card">
-    <img src="assets/Al-Hayy Logo.png" class="login-logo" alt="">
-    <h1 id="gate-title"></h1>
-    <p id="gate-message"></p>
-    <button class="btn btn-secondary btn-block js-logout" type="button">Sign out</button>
-  </div>
-</div>
-
-<!-- ============================================================
-     DASHBOARD
-     ============================================================ -->
-<div class="portal hidden" id="portal">
-  <header class="portal-top">
-    <div class="portal-brand">
-      <img src="assets/Al-Hayy Logo.png" alt="">
-      <div>
-        <div class="brand-name js-masjid-name"></div>
-        <div class="brand-sub">Client portal</div>
-      </div>
-    </div>
-    <div class="portal-user">
-      <span class="portal-user-name" id="portal-user-name"></span>
-      <button class="btn btn-ghost btn-sm js-logout" type="button">Sign out</button>
-    </div>
-  </header>
-
-  <main class="portal-main">
-    <div class="page-head">
-      <div>
-        <h1>Your submissions</h1>
-        <p class="page-lede">Send us a poster or video. The masjid reviews every submission before it appears on the screen, and you can follow its status here.</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn btn-primary" type="button" id="btn-new-submission">New submission</button>
-      </div>
-    </div>
-
-    <div class="filter-row portal-filters" id="sub-filters">
-      <button class="filter-chip active" type="button" data-filter="all">All</button>
-      <button class="filter-chip" type="button" data-filter="pending">Under review</button>
-      <button class="filter-chip" type="button" data-filter="approved">Approved</button>
-      <button class="filter-chip" type="button" data-filter="changes">Edits requested</button>
-      <button class="filter-chip" type="button" data-filter="rejected">Not approved</button>
-    </div>
-
-    <div class="sub-list" id="sub-list"><div class="loading-state"><div class="spinner"></div>Loading…</div></div>
-  </main>
-</div>
-
-<!-- ============================================================
-     DIALOGS
-     ============================================================ -->
-<dialog class="modal" id="dlg-submit" autofocus>
-  <div class="modal-head">
-    <h2 id="submit-heading">New submission</h2>
-    <button class="icon-btn" type="button" data-close aria-label="Close">✕</button>
-  </div>
-  <div class="modal-body">
-    <p class="modal-sub hidden" id="submit-resubmit-note"></p>
-    <div class="field">
-      <div class="upload-dropzone" id="upload-dropzone">
-        <input type="file" id="upload-file" accept="image/*,video/*" aria-label="Image or video file">
-        <div class="upload-dropzone-hint" id="upload-dropzone-hint">
-          <strong>Drop an image or video here</strong><br>or click to choose a file (up to 100 MB)
-        </div>
-        <div class="upload-preview hidden" id="upload-preview">
-          <div class="upload-preview-thumb" id="upload-preview-thumb"></div>
-          <div class="upload-preview-info">
-            <div class="fname" id="upload-preview-name"></div>
-            <div class="meta" id="upload-preview-meta"></div>
+        <div class="upload-dropzone" id="upload-dropzone">
+          <input type="file" id="upload-file" accept="image/*,video/*" aria-label="Image or video file">
+          <div class="upload-dropzone-hint" id="upload-dropzone-hint">
+            <strong>Drop an image or video here</strong><br>or click to choose a file (up to 100 MB)
+          </div>
+          <div class="upload-preview hidden" id="upload-preview">
+            <div class="upload-preview-thumb" id="upload-preview-thumb"></div>
+            <div class="upload-preview-info">
+              <div class="fname" id="upload-preview-name"></div>
+              <div class="meta" id="upload-preview-meta"></div>
+            </div>
           </div>
         </div>
-      </div>
-      <p class="field-hint" id="upload-file-hint">Posters look best in portrait (9:16) or landscape (16:9) at least 1080 px wide.</p>
-      <div class="form-error hidden" id="upload-error"></div>
-    </div>
-    <div class="field">
-      <label for="submit-title">Title</label>
-      <input type="text" id="submit-title" placeholder="e.g. Annual Fundraising Dinner" maxlength="80">
-    </div>
-    <div class="field-grid">
-      <div class="field">
-        <label for="submit-start">Show from <span class="muted">(optional)</span></label>
-        <input type="date" id="submit-start">
+        <p class="field-hint">Posters look best in portrait (9:16) or landscape (16:9) at least 1080 px wide.</p>
+        <div class="form-error hidden" id="upload-error"></div>
       </div>
       <div class="field">
-        <label for="submit-end">Show until <span class="muted">(optional)</span></label>
-        <input type="date" id="submit-end">
+        <label for="submit-title">Title</label>
+        <input type="text" id="submit-title" placeholder="e.g. Annual Fundraising Dinner" maxlength="80" required>
       </div>
-    </div>
-    <div class="field">
-      <label for="submit-notes">Notes for the reviewer <span class="muted">(optional)</span></label>
-      <textarea id="submit-notes" rows="3" maxlength="500" placeholder="Anything we should know about this poster or the dates you'd like."></textarea>
-    </div>
-    <div class="progress-bar hidden" id="progress-wrap"><div class="progress-bar-fill" id="progress-fill"></div></div>
-  </div>
-  <div class="modal-foot">
-    <button class="btn btn-secondary" type="button" data-close>Cancel</button>
-    <button class="btn btn-primary" type="button" id="btn-submit">Submit for review</button>
-  </div>
-</dialog>
+      <div class="field-grid">
+        <div class="field">
+          <label for="submit-start">Show from <span class="muted">(optional)</span></label>
+          <input type="date" id="submit-start">
+        </div>
+        <div class="field">
+          <label for="submit-end">Show until <span class="muted">(optional)</span></label>
+          <input type="date" id="submit-end">
+        </div>
+      </div>
+      <div class="field">
+        <label for="submit-notes">Notes for the reviewer <span class="muted">(optional)</span></label>
+        <textarea id="submit-notes" rows="3" maxlength="500" placeholder="Anything we should know about this poster or the dates you'd like."></textarea>
+      </div>
 
-<dialog class="modal" id="dlg-confirm">
-  <div class="modal-head">
-    <h2 id="confirm-title"></h2>
-  </div>
-  <div class="modal-body"><p class="modal-sub" id="confirm-message" style="margin:0"></p></div>
-  <div class="modal-foot">
-    <button class="btn btn-secondary" type="button" id="confirm-cancel" autofocus>Cancel</button>
-    <button class="btn btn-danger" type="button" id="confirm-ok"></button>
-  </div>
-</dialog>
+      <h2 class="form-section">Your details</h2>
+      <div class="field">
+        <label for="submit-name">Your name</label>
+        <input type="text" id="submit-name" autocomplete="name" maxlength="80" required>
+      </div>
+      <div class="field">
+        <label for="submit-org">Business / organization <span class="muted">(optional)</span></label>
+        <input type="text" id="submit-org" autocomplete="organization" maxlength="80">
+      </div>
+      <div class="field-grid">
+        <div class="field">
+          <label for="submit-email">Email</label>
+          <input type="email" id="submit-email" autocomplete="email" autocapitalize="none" maxlength="120" required>
+        </div>
+        <div class="field">
+          <label for="submit-phone">Phone <span class="muted">(optional)</span></label>
+          <input type="tel" id="submit-phone" autocomplete="tel" maxlength="40">
+        </div>
+      </div>
+      <!-- Honeypot: hidden from people, filled in by simple spam bots -->
+      <input type="text" id="submit-website" class="hp-field" tabindex="-1" autocomplete="off" aria-hidden="true">
 
-<dialog class="modal modal-media" id="dlg-media" autofocus>
-  <div class="modal-head">
-    <h2 id="modal-title"></h2>
-    <button class="icon-btn" type="button" data-close aria-label="Close">✕</button>
+      <div class="progress-bar hidden" id="progress-wrap"><div class="progress-bar-fill" id="progress-fill"></div></div>
+      <button class="btn btn-primary btn-block" id="btn-submit" type="submit">Submit for review</button>
+    </form>
+
+    <div class="submit-done hidden" id="submit-done">
+      <div class="empty-state-icon">✅</div>
+      <h2>Thank you!</h2>
+      <p>Your submission is with the masjid for review. If we need anything else, we'll get in touch using the details you gave.</p>
+      <button class="btn btn-secondary btn-block" id="btn-another" type="button">Submit another</button>
+    </div>
   </div>
-  <div class="modal-media-body" id="modal-media"></div>
-</dialog>
+</div>
 
 <div id="toast-container"></div>
 
 <!-- Firebase (compat SDK) -->
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <script src="firebase-config.js"></script>
-<script src="portal.js?v=4.4"></script>
+<script src="portal.js?v=4.5"></script>
 </body>
 </html>

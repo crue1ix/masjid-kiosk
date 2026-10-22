@@ -103,3 +103,21 @@ input[type="email"]:focus, input[type="tel"]:focus {
   .sub-card .slide-thumb { width: 4.2rem; height: 4.2rem; }
   .field-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Public submission form ── */
+.portal-public {
+  min-height: 100vh;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 1.5rem;
+  background: radial-gradient(ellipse at top, #FFFFFF, var(--bg) 70%);
+}
+
+.submit-card { width: min(100%, 36rem); }
+.submit-card .btn-block { margin-top: 0.8rem; }
+.submit-card form { text-align: left; }
+.form-section { font-size: 1.05rem; margin: 1.4rem 0 0.8rem; color: var(--gold-text); }
+.hp-field { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.submit-done h2 { margin: 0.4rem 0; }
+.submit-done p { color: var(--muted); margin-bottom: 1.2rem; }

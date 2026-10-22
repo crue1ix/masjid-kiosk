@@ -119,21 +119,21 @@ until you do.
 
 ### Client portal (optional)
 
-Share `portal.html` with businesses or groups who want a poster/video on the
-screen. They create an account (email + password), and **nothing works until
-you approve them**: open admin → **Ad Reel → Client accounts** (a red number
-on the Ad Reel tab shows what's waiting). Approved clients can upload an
-image or video; you review it under **Ad Reel → Client submissions**, where
-**Approve** lets you set the duration and a **Show from / Show until** date
-range before it goes on the reel (it stays hidden on the kiosk until the From
-date), and **Reject** sends your reason back to them. Client slides are
-tagged 👤 in the Slides list (filter: **From clients**). Once a submission is
-live you can use **Request edits…** on it: the client sees your note on their
-dashboard and sends a revised version (new file optional), which you approve
-again — it replaces the same slide, and you can choose to hide the slide from
-the kiosk until it's fixed. Clients see Under review / Approved / Edits
-requested / Not approved on their dashboard and can withdraw a pending
-submission or send a fixed version after a rejection.
+`portal.html` is a public form — share the link with businesses or groups who
+want a poster/video on the screen. **No account or login is needed**: they
+pick a file, add a title, optional dates and their contact details (name and
+email required), and submit. You review it under **Ad Reel → Client
+submissions** (a red number on the Ad Reel tab shows what's waiting), where
+the sender's email/phone are shown so you can reach them. **Approve** lets
+you set the duration and a **Show from / Show until** date range before it
+goes on the reel (it stays hidden on the kiosk until the From date), and
+**Reject** records your reason. Approved slides are tagged 👤 in the Slides
+list (filter: **From clients**). Since senders have no account they can't
+track status or send revisions — reply to them by email instead.
+
+After updating, re-paste `firestore.rules` into the Firebase console so the
+public form is allowed to write submissions. (The old **Client accounts** tab
+only matters for sign-ups made before this change.)
 
 **A note on video files:** Cloudinary's free plan gives you roughly
 25 GB/month shared across storage and bandwidth, and each loop of the ad
