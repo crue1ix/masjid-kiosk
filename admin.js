@@ -75,6 +75,20 @@ function tryParseDateToISO(str) {
   return toIsoDateLocal(d);
 }
 
+// "2026-10-30" (an <input type="date"> value) -> Firestore Timestamp, or null
+// when blank. Start dates begin at 00:00, end dates run to 23:59:59.
+function dateInputToTimestamp(value, endOfDay) {
+  if (!value) return null;
+  const [y, m, d] = value.split('-').map(Number);
+  const date = endOfDay ? new Date(y, m - 1, d, 23, 59, 59) : new Date(y, m - 1, d, 0, 0, 0);
+  return firebase.firestore.Timestamp.fromDate(date);
+}
+
+// Next free spot at the end of the reel (the order field drives drag-reorder).
+function nextAdOrder() {
+  return currentAdDocs.reduce((max, d) => Math.max(max, d.data.order || 0), 0) + 1;
+}
+
 // "September 22, 2026" — the format the kiosk, the bot and this page share.
 function formatDateForDisplay(isoStr) {
   return parseIsoDateLocal(isoStr).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
@@ -840,7 +854,8 @@ function updateUploadPreview(file) {
 function resetUploadForm() {
   $('upload-file').value = '';
   $('upload-title').value = '';
-  $('upload-expiry-days').value = '';
+  $('upload-from').value = '';
+  $('upload-to').value = '';
   updateUploadPreview(null);
   $('progress-wrap').classList.add('hidden');
   $('progress-fill').style.width = '0%';
@@ -895,9 +910,12 @@ $('btn-upload').addEventListener('click', () => {
   const type = file.type.startsWith('video') ? 'video' : 'image';
   const title = $('upload-title').value.trim();
   const duration = parseInt($('upload-duration').value, 10) || 8;
-  const order = parseInt($('upload-order').value, 10) || 1;
-  const expiryDaysRaw = $('upload-expiry-days').value;
-  const expiryDays = expiryDaysRaw ? parseInt(expiryDaysRaw, 10) : null;
+  const fromValue = $('upload-from').value;
+  const toValue = $('upload-to').value;
+  if (fromValue && toValue && toValue < fromValue) {
+    showToast('"Show until" can\'t be before "Show from".', 'error');
+    return;
+  }
 
   if (CLOUDINARY_CONFIG.cloudName.startsWith('PASTE_')) {
     showToast('Cloudinary isn\'t set up yet — check firebase-config.js.', 'error');
@@ -928,15 +946,15 @@ $('btn-upload').addEventListener('click', () => {
     const result = JSON.parse(xhr.responseText);
     const adDoc = {
       url: result.secure_url,
-      type, title, duration, order,
+      type, title, duration,
+      order: nextAdOrder(),
       active: true,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
-    if (expiryDays) {
-      adDoc.expiresAt = firebase.firestore.Timestamp.fromDate(
-        new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000)
-      );
-    }
+    const startsAt = dateInputToTimestamp(fromValue, false);
+    const expiresAt = dateInputToTimestamp(toValue, true);
+    if (startsAt) adDoc.startsAt = startsAt;
+    if (expiresAt) adDoc.expiresAt = expiresAt;
     db.collection('ads').add(adDoc).then(() => {
       showToast('Uploaded! It will show on the kiosk automatically.', 'success');
       resetUploadForm();
@@ -966,6 +984,7 @@ const REEL_FILTER_LABELS = {
   showing: 'Showing',
   hidden: 'Hidden',
   newsletter: 'From newsletter',
+  client: 'From clients',
   expiring: 'Expiring soon'
 };
 
@@ -986,9 +1005,11 @@ function adStatus(ad) {
   const now = Date.now();
   const msLeft = ad.expiresAt ? ad.expiresAt.toMillis() - now : null;
   const expired = msLeft !== null && msLeft <= 0;
+  const scheduled = !expired && !!ad.startsAt && ad.startsAt.toMillis() > now;
   return {
     expired,
-    showing: !!ad.active && !expired,
+    scheduled,
+    showing: !!ad.active && !expired && !scheduled,
     expiringSoon: !expired && msLeft !== null && msLeft <= 3 * DAY_MS
   };
 }
@@ -998,6 +1019,7 @@ function matchesReelFilter(ad, filter) {
   if (filter === 'showing') return s.showing;
   if (filter === 'hidden') return !s.showing;
   if (filter === 'newsletter') return ad.source === 'newsletter-auto';
+  if (filter === 'client') return ad.source === 'client';
   if (filter === 'expiring') return s.expiringSoon;
   return true;
 }
@@ -1076,8 +1098,11 @@ function renderAdList() {
     const chips = [ad.type === 'video'
       ? '<span class="chip">Video</span>'
       : `<span class="chip">Image · ${ad.duration || 8}s</span>`];
-    chips.push(`<span class="chip">Position ${ad.order}</span>`);
     if (ad.source === 'newsletter-auto') chips.push('<span class="chip chip-blue">📧 From newsletter</span>');
+    if (ad.source === 'client') chips.push(`<span class="chip chip-gold">👤 Client${ad.clientName ? ': ' + escapeHtml(ad.clientName) : ''}</span>`);
+    if (status.scheduled) {
+      chips.push(`<span class="chip chip-amber">Starts ${ad.startsAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>`);
+    }
     if (ad.expiresAt) {
       const label = ad.expiresAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' });
       chips.push(status.expired
@@ -1099,7 +1124,7 @@ function renderAdList() {
       <label class="switch${status.expired ? ' is-expired' : ''}" title="Show this slide on the kiosk">
         <input type="checkbox" class="toggle-active" ${ad.active ? 'checked' : ''}>
         <span class="switch-track"></span>
-        <span class="switch-label js-switch-text" data-on="${status.expired ? 'Expired' : 'Showing'}" data-off="Hidden">${ad.active ? (status.expired ? 'Expired' : 'Showing') : 'Hidden'}</span>
+        <span class="switch-label js-switch-text" data-on="${status.expired ? 'Expired' : status.scheduled ? 'Scheduled' : 'Showing'}" data-off="Hidden">${ad.active ? (status.expired ? 'Expired' : status.scheduled ? 'Scheduled' : 'Showing') : 'Hidden'}</span>
       </label>
       <div class="row-actions">
         <button type="button" class="icon-btn btn-edit" title="Edit" aria-label="Edit">${icon('pencil')}</button>
@@ -1175,7 +1200,7 @@ function openEditSlide(id) {
   $('edit-title').value = ad.title || '';
   $('edit-duration').value = ad.duration || 8;
   $('edit-duration-field').classList.toggle('hidden', ad.type !== 'image');
-  $('edit-order').value = ad.order || 1;
+  $('edit-from').value = ad.startsAt ? toIsoDateLocal(ad.startsAt.toDate()) : '';
   $('edit-expiry').value = ad.expiresAt ? toIsoDateLocal(ad.expiresAt.toDate()) : '';
   openDialog('dlg-edit-slide');
 }
@@ -1184,20 +1209,23 @@ $('btn-save-slide').addEventListener('click', () => {
   const item = currentAdDocs.find(d => d.id === editingAdId);
   if (!item) return;
   const ad = item.data;
-  const updates = {
-    title: $('edit-title').value.trim(),
-    order: parseInt($('edit-order').value, 10) || 1,
-  };
+  const updates = { title: $('edit-title').value.trim() };
   if (ad.type === 'image') updates.duration = parseInt($('edit-duration').value, 10) || 8;
-  // Only written when changed, so saving a title edit keeps the exact
-  // expiry time the newsletter bot set.
+  const fromValue = $('edit-from').value;
   const expiryValue = $('edit-expiry').value;
+  if (fromValue && expiryValue && expiryValue < fromValue) {
+    showToast('"Show until" can\'t be before "Show from".', 'error');
+    return;
+  }
+  // Dates are only written when changed, so saving a title edit keeps the
+  // exact expiry time the newsletter bot set.
+  const oldFromValue = ad.startsAt ? toIsoDateLocal(ad.startsAt.toDate()) : '';
+  if (fromValue !== oldFromValue) {
+    updates.startsAt = fromValue ? dateInputToTimestamp(fromValue, false) : firebase.firestore.FieldValue.delete();
+  }
   const oldExpiryValue = ad.expiresAt ? toIsoDateLocal(ad.expiresAt.toDate()) : '';
   if (expiryValue !== oldExpiryValue) {
-    const [y, m, d] = expiryValue.split('-').map(Number);
-    updates.expiresAt = expiryValue
-      ? firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59))
-      : firebase.firestore.FieldValue.delete();
+    updates.expiresAt = expiryValue ? dateInputToTimestamp(expiryValue, true) : firebase.firestore.FieldValue.delete();
   }
   db.collection('ads').doc(editingAdId).update(updates)
     .then(() => {
@@ -1267,7 +1295,7 @@ $('client-filters').addEventListener('click', e => {
   renderClientReview();
 });
 
-const SUBMISSION_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', rejected: 'Rejected', all: 'All' };
+const SUBMISSION_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', changes_requested: 'Edits requested', rejected: 'Rejected', all: 'All' };
 const CLIENT_FILTER_LABELS = { pending: 'Pending', approved: 'Approved', suspended: 'Suspended / declined', all: 'All' };
 
 function matchesClientFilter(client, filter) {
@@ -1333,12 +1361,15 @@ function renderSubmissionList() {
     const row = document.createElement('div');
     row.className = 'slide-row is-review';
 
+    const adExists = !!sub.adId && (!adsLoaded || currentAdDocs.some(d => d.id === sub.adId));
+    const isRevision = sub.status === 'pending' && !!sub.adId;
     const chips = [];
-    if (sub.status === 'pending') chips.push('<span class="chip chip-amber">Pending review</span>');
+    if (isRevision) chips.push('<span class="chip chip-amber">Revised version · pending review</span>');
+    else if (sub.status === 'pending') chips.push('<span class="chip chip-amber">Pending review</span>');
     else if (sub.status === 'approved') {
-      const adExists = !adsLoaded || currentAdDocs.some(d => d.id === sub.adId);
       chips.push(adExists ? '<span class="chip chip-green">Approved</span>' : '<span class="chip chip-grey">Approved · removed from reel</span>');
     }
+    else if (sub.status === 'changes_requested') chips.push('<span class="chip chip-blue">Edits requested · waiting on client</span>');
     else if (sub.status === 'rejected') chips.push('<span class="chip chip-red">Rejected</span>');
     else if (sub.status === 'withdrawn') chips.push('<span class="chip chip-grey">Withdrawn by client</span>');
     chips.push(`<span class="chip">${sub.type === 'video' ? 'Video' : 'Image'}${sub.bytes ? ' · ' + formatBytes(sub.bytes) : ''}</span>`);
@@ -1346,7 +1377,10 @@ function renderSubmissionList() {
     if (sub.requestedStart || sub.requestedEnd) {
       chips.push(`<span class="chip chip-gold">Wants ${sub.requestedStart ? shortDate(sub.requestedStart) : 'any time'} → ${sub.requestedEnd ? shortDate(sub.requestedEnd) : 'open-ended'}</span>`);
     }
-    if (sub.status === 'approved' && sub.expiresAt) chips.push(`<span class="chip">Until ${sub.expiresAt.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' })}</span>`);
+    if (sub.status === 'approved' && (sub.startsAt || sub.expiresAt)) {
+      const fmt = ts => ts.toDate().toLocaleDateString([], { month: 'short', day: 'numeric' });
+      chips.push(`<span class="chip">${sub.startsAt ? 'From ' + fmt(sub.startsAt) : ''}${sub.startsAt && sub.expiresAt ? ' · ' : ''}${sub.expiresAt ? 'Until ' + fmt(sub.expiresAt) : ''}</span>`);
+    }
 
     const sent = sub.createdAt ? ' · ' + timeAgo(sub.createdAt.toDate()) : '';
     const who = `${escapeHtml(sub.clientName || 'Unknown client')}${sub.organization ? ' · ' + escapeHtml(sub.organization) : ''}${sent}`;
@@ -1354,10 +1388,18 @@ function renderSubmissionList() {
     let actions = '';
     if (sub.status === 'pending') {
       actions = `<div class="review-actions">
-        <button type="button" class="btn btn-primary btn-sm act-approve">Approve…</button>
+        <button type="button" class="btn btn-primary btn-sm act-approve">${isRevision ? 'Approve revision…' : 'Approve…'}</button>
         <button type="button" class="btn btn-danger btn-sm act-reject">Reject…</button>
       </div>`;
+    } else if (sub.status === 'approved' && adExists) {
+      actions = `<div class="review-actions">
+        <button type="button" class="btn btn-secondary btn-sm act-request-edits">Request edits…</button>
+      </div>`;
     }
+    // What the admin last asked for, shown while waiting and on the revision.
+    const editNote = (sub.status === 'changes_requested' || isRevision) && sub.editRequest
+      ? `<div class="review-notes"><strong>You asked:</strong> ${escapeHtml(sub.editRequest)}</div>`
+      : '';
 
     row.innerHTML = `
       <button type="button" class="slide-thumb" title="View full size" aria-label="View full size">
@@ -1370,6 +1412,7 @@ function renderSubmissionList() {
         <div class="review-who">${who}</div>
         <div class="chips">${chips.join('')}</div>
         ${sub.notes ? `<div class="review-notes">${escapeHtml(sub.notes)}</div>` : ''}
+        ${editNote}
         ${sub.status === 'rejected' && sub.rejectReason ? `<div class="review-who">Reason given: ${escapeHtml(sub.rejectReason)}</div>` : ''}
         ${actions}
       </div>
@@ -1381,9 +1424,16 @@ function renderSubmissionList() {
     const reject = row.querySelector('.act-reject');
     if (reject) reject.addEventListener('click', () => openRejectDialog({
       collection: 'submissions', id, status: 'rejected',
+      // A rejected revision goes back to "edits requested" so the client keeps
+      // revising the same submission (and the same live slide).
+      asEditRequest: isRevision,
       heading: 'Reject submission',
-      summary: `"${sub.title || 'Untitled'}" from ${sub.clientName || 'a client'}. They'll see your reason and can send a fixed version.`
+      summary: `"${sub.title || 'Untitled'}" from ${sub.clientName || 'a client'}. ` + (isRevision
+        ? "The slide already on the reel stays as it is, and they'll be asked to send another revised version."
+        : "They'll see your reason and can send a fixed version.")
     }));
+    const requestEdits = row.querySelector('.act-request-edits');
+    if (requestEdits) requestEdits.addEventListener('click', () => openRequestEditsDialog(id));
     listEl.appendChild(row);
   });
 }
@@ -1465,76 +1515,143 @@ function renderClientList() {
   });
 }
 
-/* ── Approve a submission -> becomes an `ads` doc ── */
+/* ── Approve a submission -> becomes an `ads` doc (or, for a revised version, updates its live slide) ── */
 let approvingId = null;
 
+function findSubmission(id) {
+  return (Array.isArray(clientSubmissions) ? clientSubmissions : []).find(s => s.id === id);
+}
+
 function openApproveDialog(id) {
-  const item = (Array.isArray(clientSubmissions) ? clientSubmissions : []).find(s => s.id === id);
+  const item = findSubmission(id);
   if (!item) return;
   const sub = item.data;
   approvingId = id;
+  const liveAd = sub.adId ? currentAdDocs.find(d => d.id === sub.adId) : null;
   const notes = [`From ${sub.clientName || 'a client'}${sub.organization ? ' (' + sub.organization + ')' : ''}.`];
   if (sub.requestedStart || sub.requestedEnd) {
     notes.push(`They asked for ${sub.requestedStart ? shortDate(sub.requestedStart) : 'any time'} → ${sub.requestedEnd ? shortDate(sub.requestedEnd) : 'open-ended'}.`);
-    if (sub.requestedStart && daysFromToday(parseIsoDateLocal(sub.requestedStart)) > 0) {
-      notes.push('The reel has no start dates — it goes live as soon as you approve, so you may want to approve closer to their start date.');
-    }
   }
+  if (liveAd) notes.push('This is a revised version — approving it replaces the slide already on the reel.');
   $('approve-summary').textContent = notes.join(' ');
   $('approve-title').value = sub.title || '';
-  $('approve-duration').value = 8;
+  $('approve-duration').value = (liveAd && liveAd.data.duration) || 8;
   $('approve-duration-field').classList.toggle('hidden', sub.type === 'video');
-  // End of the reel by default; drag to reorder afterwards.
-  $('approve-order').value = currentAdDocs.reduce((max, d) => Math.max(max, d.data.order || 0), 0) + 1;
-  $('approve-expiry').value = sub.requestedEnd || '';
+  // A revision keeps the dates the admin chose before; a new one starts from the client's request.
+  $('approve-from').value = liveAd ? (liveAd.data.startsAt ? toIsoDateLocal(liveAd.data.startsAt.toDate()) : '') : (sub.requestedStart || '');
+  $('approve-expiry').value = liveAd ? (liveAd.data.expiresAt ? toIsoDateLocal(liveAd.data.expiresAt.toDate()) : '') : (sub.requestedEnd || '');
+  $('btn-confirm-approve').textContent = liveAd ? 'Approve & replace slide' : 'Approve & add to reel';
   openDialog('dlg-approve');
 }
 
 $('btn-confirm-approve').addEventListener('click', async () => {
-  const item = (Array.isArray(clientSubmissions) ? clientSubmissions : []).find(s => s.id === approvingId);
+  const item = findSubmission(approvingId);
   if (!item) return;
   const sub = item.data;
   const button = $('btn-confirm-approve');
   const duration = parseInt($('approve-duration').value, 10) || 8;
-  const order = parseInt($('approve-order').value, 10) || 1;
-  const expiryValue = $('approve-expiry').value;
-  let expiresAt = null;
-  if (expiryValue) {
-    const [y, m, d] = expiryValue.split('-').map(Number);
-    expiresAt = firebase.firestore.Timestamp.fromDate(new Date(y, m - 1, d, 23, 59, 59));
+  const fromValue = $('approve-from').value;
+  const toValue = $('approve-expiry').value;
+  if (fromValue && toValue && toValue < fromValue) {
+    showToast('"Show until" can\'t be before "Show from".', 'error');
+    return;
   }
+  const startsAt = dateInputToTimestamp(fromValue, false);
+  const expiresAt = dateInputToTimestamp(toValue, true);
+  const FieldValue = firebase.firestore.FieldValue;
+  const title = $('approve-title').value.trim() || sub.title || '';
+  const clientLabel = sub.organization || sub.clientName || '';
+  const liveAd = sub.adId ? currentAdDocs.find(d => d.id === sub.adId) : null;
 
-  const adRef = db.collection('ads').doc();
-  const adDoc = {
-    url: sub.url,
-    type: sub.type,
-    title: $('approve-title').value.trim() || sub.title || '',
-    duration, order,
-    active: true,
-    source: 'client',
-    submissionId: approvingId,
-    clientUid: sub.clientUid,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-  if (expiresAt) adDoc.expiresAt = expiresAt;
-
-  const subUpdate = {
+  const adRef = liveAd ? db.collection('ads').doc(sub.adId) : db.collection('ads').doc();
+  const batch = db.batch();
+  if (liveAd) {
+    // Revised version: same slide, same place in the reel, new content.
+    batch.update(adRef, {
+      url: sub.url, type: sub.type, title, duration,
+      active: true,
+      clientName: clientLabel,
+      startsAt: startsAt || FieldValue.delete(),
+      expiresAt: expiresAt || FieldValue.delete()
+    });
+  } else {
+    const adDoc = {
+      url: sub.url,
+      type: sub.type,
+      title, duration,
+      order: nextAdOrder(),
+      active: true,
+      source: 'client',
+      clientName: clientLabel,
+      submissionId: approvingId,
+      clientUid: sub.clientUid,
+      createdAt: FieldValue.serverTimestamp()
+    };
+    if (startsAt) adDoc.startsAt = startsAt;
+    if (expiresAt) adDoc.expiresAt = expiresAt;
+    batch.set(adRef, adDoc);
+  }
+  batch.update(db.collection('submissions').doc(approvingId), {
     status: 'approved',
     adId: adRef.id,
     duration,
-    liveFrom: firebase.firestore.FieldValue.serverTimestamp(),
-    reviewedAt: firebase.firestore.FieldValue.serverTimestamp()
-  };
-  if (expiresAt) subUpdate.expiresAt = expiresAt;
+    startsAt: startsAt || FieldValue.delete(),
+    expiresAt: expiresAt || FieldValue.delete(),
+    editRequest: FieldValue.delete(),
+    liveFrom: FieldValue.serverTimestamp(),
+    reviewedAt: FieldValue.serverTimestamp()
+  });
 
   button.disabled = true;
   try {
-    const batch = db.batch();
-    batch.set(adRef, adDoc);
-    batch.update(db.collection('submissions').doc(approvingId), subUpdate);
     await batch.commit();
     closeDialog('dlg-approve');
-    showToast('Approved — it\'s on the reel now.', 'success');
+    showToast(liveAd ? 'Approved — the slide on the reel is updated.' : (startsAt && startsAt.toMillis() > Date.now() ? 'Approved — it will start showing on the date you set.' : 'Approved — it\'s on the reel now.'), 'success');
+  } catch (err) {
+    showToast('Error: ' + err.message, 'error');
+  } finally {
+    button.disabled = false;
+  }
+});
+
+/* ── Request edits on an approved submission (client sends a revised version) ── */
+let requestEditsId = null;
+
+function openRequestEditsDialog(id) {
+  const item = findSubmission(id);
+  if (!item) return;
+  requestEditsId = id;
+  $('request-edits-summary').textContent = `"${item.data.title || 'Untitled'}" from ${item.data.clientName || 'a client'} is on the reel. They'll see your note on their dashboard and can send a revised version, which you approve again.`;
+  $('request-edits-note').value = '';
+  $('request-edits-hide').checked = false;
+  openDialog('dlg-request-edits');
+}
+
+$('btn-confirm-request-edits').addEventListener('click', async () => {
+  const item = findSubmission(requestEditsId);
+  if (!item) return;
+  const note = $('request-edits-note').value.trim();
+  if (!note) {
+    showToast('Write what needs to change.', 'error');
+    $('request-edits-note').focus();
+    return;
+  }
+  const FieldValue = firebase.firestore.FieldValue;
+  const button = $('btn-confirm-request-edits');
+  button.disabled = true;
+  try {
+    const batch = db.batch();
+    batch.update(db.collection('submissions').doc(requestEditsId), {
+      status: 'changes_requested',
+      editRequest: note,
+      editRequestedAt: FieldValue.serverTimestamp()
+    });
+    if ($('request-edits-hide').checked && item.data.adId) {
+      batch.update(db.collection('ads').doc(item.data.adId), { active: false });
+    }
+    await batch.commit();
+    closeDialog('dlg-request-edits');
+    showToast('Edit request sent.', 'success');
   } catch (err) {
     showToast('Error: ' + err.message, 'error');
   } finally {
@@ -1556,10 +1673,16 @@ function openRejectDialog(target) {
 
 $('btn-confirm-reject').addEventListener('click', async () => {
   if (!rejectTarget) return;
-  const { collection, id, status } = rejectTarget;
+  const { collection, id, status, asEditRequest } = rejectTarget;
   const reason = $('reject-reason').value.trim();
   const update = { status, reviewedAt: firebase.firestore.FieldValue.serverTimestamp() };
   update.rejectReason = reason || firebase.firestore.FieldValue.delete();
+  if (asEditRequest) {
+    update.status = 'changes_requested';
+    update.editRequest = reason || "Your revised version wasn't approved. Please send another.";
+    update.editRequestedAt = firebase.firestore.FieldValue.serverTimestamp();
+    delete update.rejectReason;
+  }
   const button = $('btn-confirm-reject');
   button.disabled = true;
   try {

@@ -46,7 +46,10 @@ Single file containing all customizable settings:
 ```
 /ads (collection)
   url, type ("image"|"video"), title, duration, order, active, createdAt
-  expiresAt (optional), source ("newsletter-auto" for bot posters), imageHash, rawMessageId
+  startsAt (optional, kiosk hides the ad until then), expiresAt (optional),
+  source ("newsletter-auto" for bot posters | "client" for approved portal submissions),
+  clientName (client ads), imageHash, rawMessageId
+  (no "position" field in the UI — order is set by drag-reorder; new ads go to the end)
 
 /settings/kiosk
   locked, hubIdleTimeoutSeconds,
@@ -68,8 +71,10 @@ Single file containing all customizable settings:
 /submissions/{id}
   clientUid, clientName, organization, title, notes, url, type, bytes,
   requestedStart?, requestedEnd? (YYYY-MM-DD), replacesId?,
-  status ("pending"|"approved"|"rejected"|"withdrawn"), rejectReason?,
-  adId?, duration?, expiresAt?, liveFrom?, createdAt, reviewedAt, withdrawnAt
+  status ("pending"|"approved"|"changes_requested"|"rejected"|"withdrawn"), rejectReason?,
+  editRequest? (admin's note when status is changes_requested — only possible after approval),
+  adId?, duration?, startsAt?, expiresAt?, liveFrom?, createdAt, reviewedAt, revisedAt, withdrawnAt
+  (a client's revised version updates the same doc back to "pending"; approving it updates the live ad in place)
   (ads created from one also carry source:"client", submissionId, clientUid)
 
 /hub_taps/{YYYY-MM-DD} (collection)

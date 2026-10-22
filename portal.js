@@ -275,14 +275,19 @@ function submittedAtMillis(sub) {
 // What the client sees for a submission's state.
 function describeSubmission(sub) {
   const now = Date.now();
-  if (sub.status === 'pending') return { key: 'pending', chip: '<span class="chip chip-amber">Under review</span>' };
+  // A pending submission that already has a live slide is a revised version.
+  if (sub.status === 'pending') {
+    return { key: 'pending', chip: `<span class="chip chip-amber">${sub.adId ? 'Revised version under review' : 'Under review'}</span>` };
+  }
+  if (sub.status === 'changes_requested') return { key: 'changes', chip: '<span class="chip chip-blue">Edits requested</span>' };
   if (sub.status === 'rejected') return { key: 'rejected', chip: '<span class="chip chip-red">Not approved</span>' };
   if (sub.status === 'withdrawn') return { key: 'withdrawn', chip: '<span class="chip chip-grey">Withdrawn</span>' };
   if (sub.status === 'approved') {
     const ended = sub.expiresAt && sub.expiresAt.toMillis() <= now;
-    return ended
-      ? { key: 'approved', chip: '<span class="chip chip-grey">Ended</span>' }
-      : { key: 'approved', chip: '<span class="chip chip-green">Approved · on the screen</span>' };
+    const upcoming = sub.startsAt && sub.startsAt.toMillis() > now;
+    if (ended) return { key: 'approved', chip: '<span class="chip chip-grey">Ended</span>' };
+    if (upcoming) return { key: 'approved', chip: `<span class="chip chip-green">Approved · starts ${formatDateShort(sub.startsAt.toDate())}</span>` };
+    return { key: 'approved', chip: '<span class="chip chip-green">Approved · on the screen</span>' };
   }
   return { key: 'other', chip: '' };
 }
@@ -296,12 +301,12 @@ $('sub-filters').addEventListener('click', e => {
 
 function renderSubmissions() {
   const listEl = $('sub-list');
-  const counts = { all: submissions.length, pending: 0, approved: 0, rejected: 0 };
+  const counts = { all: submissions.length, pending: 0, approved: 0, changes: 0, rejected: 0 };
   submissions.forEach(sub => {
     const key = describeSubmission(sub).key;
     if (counts[key] !== undefined) counts[key]++;
   });
-  const labels = { all: 'All', pending: 'Under review', approved: 'Approved', rejected: 'Not approved' };
+  const labels = { all: 'All', pending: 'Under review', approved: 'Approved', changes: 'Edits requested', rejected: 'Not approved' };
   document.querySelectorAll('#sub-filters .filter-chip').forEach(chip => {
     const f = chip.dataset.filter;
     chip.classList.toggle('active', f === subFilter);
@@ -334,17 +339,26 @@ function renderSubmissions() {
     let note = '';
     if (sub.status === 'rejected') {
       note = `<div class="sub-note sub-note-red"><strong>Not approved.</strong> ${sub.rejectReason ? escapeHtml(sub.rejectReason) : 'No reason was given.'}</div>`;
+    } else if (sub.status === 'changes_requested') {
+      note = `<div class="sub-note sub-note-blue"><strong>The masjid asked for changes:</strong> ${sub.editRequest ? escapeHtml(sub.editRequest) : 'Please send a revised version.'}</div>`;
     } else if (sub.status === 'approved') {
-      const ended = sub.expiresAt && sub.expiresAt.toMillis() <= Date.now();
+      const now = Date.now();
+      const ended = sub.expiresAt && sub.expiresAt.toMillis() <= now;
+      const upcoming = sub.startsAt && sub.startsAt.toMillis() > now;
+      const from = upcoming ? ` starting ${formatDateShort(sub.startsAt.toDate())}` : '';
       const until = sub.expiresAt ? ` until ${formatDateShort(sub.expiresAt.toDate())}` : '';
       note = ended
         ? `<div class="sub-note sub-note-green">This ran on the masjid screen${until}.</div>`
-        : `<div class="sub-note sub-note-green"><strong>Approved!</strong> It's playing on the masjid screen${until}.</div>`;
+        : upcoming
+          ? `<div class="sub-note sub-note-green"><strong>Approved!</strong> It will play on the masjid screen${from}${until}.</div>`
+          : `<div class="sub-note sub-note-green"><strong>Approved!</strong> It's playing on the masjid screen${until}.</div>`;
     }
 
     const actions = [];
-    if (sub.status === 'pending') actions.push('<button type="button" class="btn btn-secondary btn-sm act-withdraw">Withdraw</button>');
+    // Once a slide is live (adId), the only way to change it is the masjid's edit request.
+    if (sub.status === 'pending' && !sub.adId) actions.push('<button type="button" class="btn btn-secondary btn-sm act-withdraw">Withdraw</button>');
     if (sub.status === 'rejected') actions.push('<button type="button" class="btn btn-primary btn-sm act-resubmit">Submit a fixed version</button>');
+    if (sub.status === 'changes_requested') actions.push('<button type="button" class="btn btn-primary btn-sm act-revise">Send revised version</button>');
 
     card.innerHTML = `
       <button type="button" class="slide-thumb" title="View full size" aria-label="View full size">
@@ -365,7 +379,9 @@ function renderSubmissions() {
     const withdraw = card.querySelector('.act-withdraw');
     if (withdraw) withdraw.addEventListener('click', () => withdrawSubmission(sub));
     const resubmit = card.querySelector('.act-resubmit');
-    if (resubmit) resubmit.addEventListener('click', () => openSubmitDialog(sub));
+    if (resubmit) resubmit.addEventListener('click', () => openSubmitDialog(sub, 'resubmit'));
+    const revise = card.querySelector('.act-revise');
+    if (revise) revise.addEventListener('click', () => openSubmitDialog(sub, 'revise'));
     listEl.appendChild(card);
   });
 }
@@ -403,6 +419,7 @@ async function withdrawSubmission(sub) {
    ============================================================ */
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
 let resubmitOf = null; // the rejected submission being replaced, if any
+let reviseOf = null;   // the approved submission the masjid asked edits for, if any
 
 function validateUploadFile(file) {
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
@@ -456,15 +473,24 @@ function resetSubmitForm() {
   $('btn-submit').disabled = false;
 }
 
-// `previous` is a rejected submission when resubmitting a fixed version.
-function openSubmitDialog(previous) {
+// `previous` is the earlier submission when mode is 'resubmit' (after a
+// rejection: a brand-new submission) or 'revise' (the masjid asked for edits
+// on an approved one: updates that same submission, file optional).
+function openSubmitDialog(previous, mode) {
   if (!$('btn-submit').disabled) resetSubmitForm(); // keep an upload in progress visible
-  resubmitOf = previous || null;
-  $('submit-heading').textContent = previous ? 'Submit a fixed version' : 'New submission';
+  resubmitOf = previous && mode === 'resubmit' ? previous : null;
+  reviseOf = previous && mode === 'revise' ? previous : null;
+  $('submit-heading').textContent = reviseOf ? 'Send a revised version' : previous ? 'Submit a fixed version' : 'New submission';
+  $('btn-submit').textContent = reviseOf ? 'Send revised version' : 'Submit for review';
+  $('upload-file-hint').textContent = reviseOf
+    ? 'Choose a new file only if the poster itself needs to change — otherwise you can just update the details below.'
+    : 'Posters look best in portrait (9:16) or landscape (16:9) at least 1080 px wide.';
   const note = $('submit-resubmit-note');
   note.classList.toggle('hidden', !previous);
   if (previous) {
-    note.textContent = `Replacing "${previous.title || 'Untitled'}"${previous.rejectReason ? ` — the reviewer said: ${previous.rejectReason}` : ''}. Upload the corrected file below.`;
+    note.textContent = reviseOf
+      ? `The masjid asked: ${previous.editRequest || 'please send a revised version.'}`
+      : `Replacing "${previous.title || 'Untitled'}"${previous.rejectReason ? ` — the reviewer said: ${previous.rejectReason}` : ''}. Upload the corrected file below.`;
     $('submit-title').value = previous.title || '';
     $('submit-notes').value = previous.notes || '';
     $('submit-start').value = previous.requestedStart || '';
@@ -503,15 +529,18 @@ $('btn-submit').addEventListener('click', () => {
   const file = fileInput.files[0];
   if (!user || !currentClient) return;
 
-  if (!file) {
+  // A revision to an approved slide can be details-only; everything else needs a file.
+  if (!file && !reviseOf) {
     showToast('Choose a file first.', 'error');
     return;
   }
-  const validationError = validateUploadFile(file);
-  if (validationError) {
-    showUploadError(validationError);
-    showToast(validationError, 'error');
-    return;
+  if (file) {
+    const validationError = validateUploadFile(file);
+    if (validationError) {
+      showUploadError(validationError);
+      showToast(validationError, 'error');
+      return;
+    }
   }
   const title = $('submit-title').value.trim();
   if (!title) {
@@ -526,9 +555,56 @@ $('btn-submit').addEventListener('click', () => {
     return;
   }
 
+  const FieldValue = firebase.firestore.FieldValue;
+
+  // `uploaded` is the Cloudinary result, or null for a details-only revision.
+  const saveSubmission = async uploaded => {
+    try {
+      const fileFields = uploaded
+        ? { url: uploaded.secure_url, type: file.type.startsWith('video') ? 'video' : 'image', bytes: file.size }
+        : {};
+      if (reviseOf) {
+        await db.collection('submissions').doc(reviseOf.id).update(Object.assign({
+          title,
+          notes: $('submit-notes').value.trim(),
+          requestedStart: start || FieldValue.delete(),
+          requestedEnd: end || FieldValue.delete(),
+          status: 'pending',
+          revisedAt: FieldValue.serverTimestamp()
+        }, fileFields));
+        showToast('Revised version sent! The masjid will review it.', 'success');
+      } else {
+        const doc = Object.assign({
+          clientUid: user.uid,
+          clientName: currentClient.name || '',
+          organization: currentClient.organization || '',
+          title,
+          notes: $('submit-notes').value.trim(),
+          status: 'pending',
+          createdAt: FieldValue.serverTimestamp()
+        }, fileFields);
+        if (start) doc.requestedStart = start;
+        if (end) doc.requestedEnd = end;
+        if (resubmitOf) doc.replacesId = resubmitOf.id;
+        await db.collection('submissions').add(doc);
+        showToast('Submitted! The masjid will review it shortly.', 'success');
+      }
+      resetSubmitForm();
+      closeDialog('dlg-submit');
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+      $('btn-submit').disabled = false;
+    }
+  };
+
+  $('btn-submit').disabled = true;
+  if (!file) {
+    saveSubmission(null);
+    return;
+  }
+
   const progressFill = $('progress-fill');
   $('progress-wrap').classList.remove('hidden');
-  $('btn-submit').disabled = true;
 
   const formData = new FormData();
   formData.append('file', file);
@@ -541,37 +617,13 @@ $('btn-submit').addEventListener('click', () => {
     if (e.lengthComputable) progressFill.style.width = ((e.loaded / e.total) * 100) + '%';
   });
 
-  xhr.onload = async () => {
+  xhr.onload = () => {
     if (xhr.status < 200 || xhr.status >= 300) {
       showToast('Upload failed. Please try again.', 'error');
       $('btn-submit').disabled = false;
       return;
     }
-    try {
-      const result = JSON.parse(xhr.responseText);
-      const doc = {
-        clientUid: user.uid,
-        clientName: currentClient.name || '',
-        organization: currentClient.organization || '',
-        title,
-        notes: $('submit-notes').value.trim(),
-        url: result.secure_url,
-        type: file.type.startsWith('video') ? 'video' : 'image',
-        bytes: file.size,
-        status: 'pending',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      if (start) doc.requestedStart = start;
-      if (end) doc.requestedEnd = end;
-      if (resubmitOf) doc.replacesId = resubmitOf.id;
-      await db.collection('submissions').add(doc);
-      showToast('Submitted! The masjid will review it shortly.', 'success');
-      resetSubmitForm();
-      closeDialog('dlg-submit');
-    } catch (err) {
-      showToast('Error: ' + err.message, 'error');
-      $('btn-submit').disabled = false;
-    }
+    saveSubmission(JSON.parse(xhr.responseText));
   };
 
   xhr.onerror = () => {

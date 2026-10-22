@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Client Portal</title>
-<link rel="stylesheet" href="admin.css?v=4.3">
-<link rel="stylesheet" href="portal.css?v=4.3">
+<link rel="stylesheet" href="admin.css?v=4.4">
+<link rel="stylesheet" href="portal.css?v=4.4">
 </head>
 <body>
 
@@ -111,6 +111,7 @@
       <button class="filter-chip active" type="button" data-filter="all">All</button>
       <button class="filter-chip" type="button" data-filter="pending">Under review</button>
       <button class="filter-chip" type="button" data-filter="approved">Approved</button>
+      <button class="filter-chip" type="button" data-filter="changes">Edits requested</button>
       <button class="filter-chip" type="button" data-filter="rejected">Not approved</button>
     </div>
 
@@ -142,7 +143,7 @@
           </div>
         </div>
       </div>
-      <p class="field-hint">Posters look best in portrait (9:16) or landscape (16:9) at least 1080 px wide.</p>
+      <p class="field-hint" id="upload-file-hint">Posters look best in portrait (9:16) or landscape (16:9) at least 1080 px wide.</p>
       <div class="form-error hidden" id="upload-error"></div>
     </div>
     <div class="field">
@@ -198,6 +199,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <script src="firebase-config.js"></script>
-<script src="portal.js?v=4.3.2"></script>
+<script src="portal.js?v=4.4"></script>
 </body>
 </html>

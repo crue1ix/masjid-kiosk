@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Kiosk Admin</title>
-<link rel="stylesheet" href="admin.css?v=4.3">
+<link rel="stylesheet" href="admin.css?v=4.4">
 </head>
 <body>
 
@@ -231,7 +231,7 @@
       </div>
 
       <div class="section-title"><h2>Your slides</h2><span class="muted" id="reel-count"></span></div>
-      <p class="section-lede">Images and videos you've uploaded, plus posters the newsletter bot adds (marked 📧). Bot posters remove themselves after 7 days.</p>
+      <p class="section-lede">Images and videos you've uploaded, posters the newsletter bot adds (marked 📧), and approved client slides (marked 👤). Bot posters remove themselves after 7 days.</p>
       <div class="reel-toolbar">
         <div class="search-box">
           <i data-icon="search"></i>
@@ -242,6 +242,7 @@
           <button class="filter-chip" type="button" data-filter="showing">Showing</button>
           <button class="filter-chip" type="button" data-filter="hidden">Hidden</button>
           <button class="filter-chip" type="button" data-filter="newsletter">From newsletter</button>
+          <button class="filter-chip" type="button" data-filter="client">From clients</button>
           <button class="filter-chip" type="button" data-filter="expiring">Expiring soon</button>
         </div>
       </div>
@@ -255,6 +256,7 @@
         <div class="filter-row" id="sub-filters">
           <button class="filter-chip active" type="button" data-filter="pending">Pending</button>
           <button class="filter-chip" type="button" data-filter="approved">Approved</button>
+          <button class="filter-chip" type="button" data-filter="changes_requested">Edits requested</button>
           <button class="filter-chip" type="button" data-filter="rejected">Rejected</button>
           <button class="filter-chip" type="button" data-filter="all">All</button>
         </div>
@@ -478,22 +480,22 @@
       <label for="upload-title">Title <span class="muted">(only you see this)</span></label>
       <input type="text" id="upload-title" placeholder="e.g. Ramadan Mubarak slide">
     </div>
+    <div class="field" id="duration-field">
+      <label for="upload-duration">Show for (seconds)</label>
+      <input type="number" id="upload-duration" value="8" min="2">
+      <p class="field-hint">Videos always play to the end.</p>
+    </div>
     <div class="field-grid">
-      <div class="field" id="duration-field">
-        <label for="upload-duration">Show for (seconds)</label>
-        <input type="number" id="upload-duration" value="8" min="2">
-        <p class="field-hint">Videos always play to the end.</p>
+      <div class="field">
+        <label for="upload-from">Show from <span class="muted">(optional)</span></label>
+        <input type="date" id="upload-from">
       </div>
       <div class="field">
-        <label for="upload-order">Position</label>
-        <input type="number" id="upload-order" value="1">
-        <p class="field-hint">Lower numbers play first.</p>
+        <label for="upload-to">Show until <span class="muted">(optional)</span></label>
+        <input type="date" id="upload-to">
       </div>
     </div>
-    <div class="field">
-      <label for="upload-expiry-days">Remove automatically after <span class="muted">(optional)</span></label>
-      <input type="number" id="upload-expiry-days" placeholder="Number of days. Leave blank to keep it." min="1">
-    </div>
+    <p class="field-hint">Leave both blank to show it right away and keep it until you delete it. New slides go to the end of the reel; drag to reorder.</p>
     <div class="progress-bar hidden" id="progress-wrap"><div class="progress-bar-fill" id="progress-fill"></div></div>
   </div>
   <div class="modal-foot">
@@ -512,21 +514,21 @@
       <label for="edit-title">Title</label>
       <input type="text" id="edit-title" autofocus>
     </div>
+    <div class="field" id="edit-duration-field">
+      <label for="edit-duration">Show for (seconds)</label>
+      <input type="number" id="edit-duration" min="2">
+    </div>
     <div class="field-grid">
-      <div class="field" id="edit-duration-field">
-        <label for="edit-duration">Show for (seconds)</label>
-        <input type="number" id="edit-duration" min="2">
+      <div class="field">
+        <label for="edit-from">Show from <span class="muted">(optional)</span></label>
+        <input type="date" id="edit-from">
       </div>
       <div class="field">
-        <label for="edit-order">Position</label>
-        <input type="number" id="edit-order">
+        <label for="edit-expiry">Show until <span class="muted">(optional)</span></label>
+        <input type="date" id="edit-expiry">
       </div>
     </div>
-    <div class="field">
-      <label for="edit-expiry">Remove automatically on <span class="muted">(optional)</span></label>
-      <input type="date" id="edit-expiry">
-      <p class="field-hint">Leave blank to keep it until you delete it.</p>
-    </div>
+    <p class="field-hint">Leave blank to show it right away / keep it until you delete it.</p>
   </div>
   <div class="modal-foot">
     <button class="btn btn-secondary" type="button" data-close>Cancel</button>
@@ -545,27 +547,48 @@
       <label for="approve-title">Title</label>
       <input type="text" id="approve-title">
     </div>
+    <div class="field" id="approve-duration-field">
+      <label for="approve-duration">Show for (seconds)</label>
+      <input type="number" id="approve-duration" value="8" min="2">
+      <p class="field-hint">Videos always play to the end.</p>
+    </div>
     <div class="field-grid">
-      <div class="field" id="approve-duration-field">
-        <label for="approve-duration">Show for (seconds)</label>
-        <input type="number" id="approve-duration" value="8" min="2">
-        <p class="field-hint">Videos always play to the end.</p>
+      <div class="field">
+        <label for="approve-from">Show from <span class="muted">(optional)</span></label>
+        <input type="date" id="approve-from">
       </div>
       <div class="field">
-        <label for="approve-order">Position</label>
-        <input type="number" id="approve-order" value="1">
-        <p class="field-hint">Lower numbers play first.</p>
+        <label for="approve-expiry">Show until <span class="muted">(optional)</span></label>
+        <input type="date" id="approve-expiry">
       </div>
     </div>
-    <div class="field">
-      <label for="approve-expiry">Remove automatically on <span class="muted">(optional)</span></label>
-      <input type="date" id="approve-expiry">
-      <p class="field-hint" id="approve-expiry-hint">Leave blank to keep it until you delete it.</p>
-    </div>
+    <p class="field-hint">Filled in from what the client asked for. Leave blank to show it right away and keep it until you remove it.</p>
   </div>
   <div class="modal-foot">
     <button class="btn btn-secondary" type="button" data-close>Cancel</button>
     <button class="btn btn-primary" type="button" id="btn-confirm-approve">Approve &amp; add to reel</button>
+  </div>
+</dialog>
+
+<dialog class="modal" id="dlg-request-edits">
+  <div class="modal-head">
+    <h2>Request edits</h2>
+    <button class="icon-btn" type="button" data-close aria-label="Close"><i data-icon="close"></i></button>
+  </div>
+  <div class="modal-body">
+    <p class="modal-sub" id="request-edits-summary"></p>
+    <div class="field">
+      <label for="request-edits-note">What needs to change? <span class="muted">(shown to the client)</span></label>
+      <textarea id="request-edits-note" rows="4" placeholder="e.g. The date on the poster is wrong — it should say October 30." autofocus></textarea>
+    </div>
+    <label class="check-row">
+      <input type="checkbox" id="request-edits-hide">
+      <span>Hide this slide from the kiosk until it's fixed</span>
+    </label>
+  </div>
+  <div class="modal-foot">
+    <button class="btn btn-secondary" type="button" data-close>Cancel</button>
+    <button class="btn btn-primary" type="button" id="btn-confirm-request-edits">Send request</button>
   </div>
 </dialog>
 
@@ -655,6 +678,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <script src="firebase-config.js"></script>
-<script src="admin.js?v=4.3"></script>
+<script src="admin.js?v=4.4"></script>
 </body>
 </html>

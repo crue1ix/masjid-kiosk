@@ -225,14 +225,33 @@ const adWrap = document.getElementById('ad-media-wrap');
 // Live-updates whenever ads are added/removed/edited from admin.html.
 // (Filtering "active" here in JS, rather than in the query, avoids needing
 // a Firestore composite index.)
-db.collection('ads').orderBy('order').onSnapshot(snapshot => {
+let allAdDocs = [];
+
+// An ad plays when it's switched on and today is inside its optional
+// startsAt..expiresAt window.
+function playableAds() {
   const now = Date.now();
-  rawAds = snapshot.docs
-    .map(doc => doc.data())
+  return allAdDocs
     .filter(ad => ad.active)
+    .filter(ad => !ad.startsAt || ad.startsAt.toMillis() <= now)
     .filter(ad => !ad.expiresAt || ad.expiresAt.toMillis() > now);
+}
+
+db.collection('ads').orderBy('order').onSnapshot(snapshot => {
+  allAdDocs = snapshot.docs.map(doc => doc.data());
+  rawAds = playableAds();
   rebuildPlaylist();
 });
+
+// Start/end dates pass without any Firestore change, so re-check every
+// minute. Only rebuilds (which restarts playback) if the playable set changed.
+setInterval(() => {
+  const next = playableAds();
+  const key = list => list.map(ad => ad.url).join('|');
+  if (key(next) === key(rawAds)) return;
+  rawAds = next;
+  rebuildPlaylist();
+}, 60 * 1000);
 
 // Special reels (e.g. prayer times) aren't part of the orderable `ads` list —
 // they're appended once per full loop, independent of manual ordering.

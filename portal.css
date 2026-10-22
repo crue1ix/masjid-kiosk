@@ -86,6 +86,7 @@ input[type="email"]:focus, input[type="tel"]:focus {
 .sub-note { font-size: 0.88rem; border-radius: var(--radius-sm); padding: 0.55rem 0.75rem; }
 .sub-note-red { background: var(--danger-soft); color: var(--danger); }
 .sub-note-green { background: var(--success-soft); color: var(--success); }
+.sub-note-blue { background: var(--info-soft); color: var(--info); }
 .sub-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.1rem; }
 
 .chip-grey { background: #ECE8DC; color: var(--muted); }

@@ -1158,6 +1158,9 @@ dialog.modal-preview .preview-stage { width: min(80vw, calc((100vh - 9rem) * 0.5
 .review-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.2rem; }
 .chip-grey { background: #ECE8DC; color: var(--muted); }
 
+.check-row { display: flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; cursor: pointer; }
+.check-row input { width: 1.1rem; height: 1.1rem; accent-color: var(--gold); flex-shrink: 0; }
+
 /* ============================================================
    TOASTS & UNSAVED BAR
    ============================================================ */
