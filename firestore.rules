@@ -48,14 +48,15 @@ service cloud.firestore {
       allow create: if request.resource.data.status == 'pending'
         && request.resource.data.keys().hasOnly(['clientName', 'organization', 'email', 'phone', 'title', 'notes',
              'url', 'type', 'bytes', 'requestedStart', 'requestedEnd', 'status', 'createdAt'])
-        && request.resource.data.keys().hasAll(['clientName', 'email', 'title', 'url', 'type', 'status', 'createdAt'])
+        && request.resource.data.keys().hasAll(['clientName', 'phone', 'title', 'url', 'type', 'status', 'createdAt'])
         && request.resource.data.clientName is string && request.resource.data.clientName.size() <= 80
-        && request.resource.data.email is string && request.resource.data.email.size() <= 120
+        && request.resource.data.phone is string && request.resource.data.phone.size() <= 40
+        && request.resource.data.get('email', '').size() <= 120
         && request.resource.data.title is string && request.resource.data.title.size() <= 80
         && request.resource.data.get('organization', '').size() <= 80
         && request.resource.data.get('notes', '').size() <= 500
         && request.resource.data.url is string
-        && request.resource.data.url.matches('^https://res\.cloudinary\.com/.*')
+        && request.resource.data.url.matches('^https://res[.]cloudinary[.]com/.*')
         && request.resource.data.type in ['image', 'video'];
       allow update, delete: if isAdmin();
     }

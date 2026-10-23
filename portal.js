@@ -154,9 +154,15 @@ $('submit-form').addEventListener('submit', e => {
     $('submit-name').focus();
     return;
   }
+  const phone = $('submit-phone').value.trim();
+  if (!phone) {
+    showToast('Enter a phone number so the masjid can reach you.', 'error');
+    $('submit-phone').focus();
+    return;
+  }
   const email = $('submit-email').value.trim();
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    showToast('Enter a valid email so the masjid can reach you.', 'error');
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    showToast('That email address doesn\'t look right.', 'error');
     $('submit-email').focus();
     return;
   }
@@ -166,7 +172,7 @@ $('submit-form').addEventListener('submit', e => {
       const doc = {
         clientName: name,
         organization: $('submit-org').value.trim(),
-        email,
+        phone,
         title,
         notes: $('submit-notes').value.trim(),
         url: uploaded.secure_url,
@@ -175,8 +181,7 @@ $('submit-form').addEventListener('submit', e => {
         status: 'pending',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
-      const phone = $('submit-phone').value.trim();
-      if (phone) doc.phone = phone;
+      if (email) doc.email = email;
       if (start) doc.requestedStart = start;
       if (end) doc.requestedEnd = end;
       await db.collection('submissions').add(doc);
