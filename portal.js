@@ -144,7 +144,17 @@ $('submit-form').addEventListener('submit', e => {
   }
   const start = $('submit-start').value;
   const end = $('submit-end').value;
-  if (start && end && end < start) {
+  if (!start) {
+    showToast('Choose a "Show from" date.', 'error');
+    $('submit-start').focus();
+    return;
+  }
+  if (!end) {
+    showToast('Choose a "Show until" date.', 'error');
+    $('submit-end').focus();
+    return;
+  }
+  if (end < start) {
     showToast('"Show until" can\'t be before "Show from".', 'error');
     return;
   }
@@ -154,6 +164,12 @@ $('submit-form').addEventListener('submit', e => {
     $('submit-name').focus();
     return;
   }
+  const org = $('submit-org').value.trim();
+  if (!org) {
+    showToast('Enter your business or organization name.', 'error');
+    $('submit-org').focus();
+    return;
+  }
   const phone = $('submit-phone').value.trim();
   if (!phone) {
     showToast('Enter a phone number so the masjid can reach you.', 'error');
@@ -161,7 +177,7 @@ $('submit-form').addEventListener('submit', e => {
     return;
   }
   const email = $('submit-email').value.trim();
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     showToast('That email address doesn\'t look right.', 'error');
     $('submit-email').focus();
     return;
@@ -171,8 +187,11 @@ $('submit-form').addEventListener('submit', e => {
     try {
       const doc = {
         clientName: name,
-        organization: $('submit-org').value.trim(),
+        organization: org,
+        email,
         phone,
+        requestedStart: start,
+        requestedEnd: end,
         title,
         notes: $('submit-notes').value.trim(),
         url: uploaded.secure_url,
@@ -181,9 +200,6 @@ $('submit-form').addEventListener('submit', e => {
         status: 'pending',
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
-      if (email) doc.email = email;
-      if (start) doc.requestedStart = start;
-      if (end) doc.requestedEnd = end;
       await db.collection('submissions').add(doc);
       resetSubmitForm();
       showDone(true);
