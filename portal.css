@@ -104,6 +104,13 @@ input[type="email"]:focus, input[type="tel"]:focus {
   .field-grid { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 560px) {
+  .portal-public { padding: 0.8rem; }
+  .submit-card { padding: 1.8rem 1.2rem; }
+  .submit-card h1 { font-size: 1.6rem; }
+  .rates { grid-template-columns: 1fr; }
+}
+
 /* ── Public submission form ── */
 .portal-public {
   min-height: 100vh;
@@ -114,7 +121,69 @@ input[type="email"]:focus, input[type="tel"]:focus {
   background: radial-gradient(ellipse at top, #FFFFFF, var(--bg) 70%);
 }
 
-.submit-card { width: min(100%, 36rem); }
+.submit-card { width: min(100%, 40rem); padding: 2.4rem 2.2rem; }
+
+.eyebrow {
+  font: 600 0.78rem 'Inter', sans-serif;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.3rem;
+}
+
+.submit-card h1 { font-size: 2rem; line-height: 1.15; }
+
+.intro { margin-top: 1.4rem; text-align: left; }
+.intro .lead { color: var(--text); line-height: 1.6; margin: 0 0 1.6rem; text-align: center; }
+
+.rates-title { font-size: 1.05rem; text-align: center; color: var(--gold-text); margin: 0 0 0.8rem; }
+.rates { display: grid; grid-template-columns: 1fr 1fr; gap: 0.9rem; }
+
+.rate-card {
+  background: var(--gold-soft);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem;
+  text-align: center;
+}
+
+.rate-kind { font-weight: 600; font-size: 0.95rem; }
+.rate-tag {
+  display: inline-block;
+  margin-left: 0.3rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  color: var(--gold-text);
+  font-size: 0.7rem;
+  font-weight: 600;
+  vertical-align: 0.1em;
+}
+.rate-price { font: 700 2.4rem 'Reem Kufi', 'Inter', sans-serif; color: var(--gold-text); margin: 0.2rem 0 0.4rem; }
+.rate-price span { font: 500 0.95rem 'Inter', sans-serif; color: var(--muted); margin-left: 0.15rem; }
+.rate-card p { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--muted); }
+
+.intro-contact { margin: 1.3rem 0 0.5rem; text-align: center; font-size: 0.92rem; color: var(--muted); }
+.intro-contact a { color: var(--gold-text); font-weight: 600; }
+.intro-note {
+  margin: 0;
+  padding: 0.65rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--info-soft);
+  color: var(--info);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.form-heading {
+  margin: 2rem 0 0.2rem;
+  padding-top: 1.6rem;
+  border-top: 1px solid var(--border);
+  font-size: 1.3rem;
+  text-align: center;
+}
+.form-sub { margin: 0 0 1.3rem; color: var(--muted); font-size: 0.92rem; text-align: center; }
 .submit-card .btn-block { margin-top: 0.8rem; }
 .submit-card form { text-align: left; }
 .form-section { font-size: 1.05rem; margin: 1.4rem 0 0.8rem; color: var(--gold-text); }
