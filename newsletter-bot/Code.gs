@@ -495,8 +495,9 @@ For each announcement:
 List each distinct notice only once, even if the newsletter mentions it in several places.
 
 === PART 3: Posters -> posters ===
-Each image is preceded by a label like "[Image 0]". Some images are posters that will be shown full-screen on the masjid's digital display; most others are not. A poster is a self-contained, designed graphic promoting an event, program, class, majlis, fundraiser, occasion or campaign, with readable text, that makes sense on its own (a program schedule flyer counts).
-NOT posters: photos of people, places or past events; logos; newsletter header/footer banners or mastheads; email signatures; social media icons; decorative dividers; images that are only a QR code; and donation bank-detail graphics.
+Each image is preceded by a label like "[Image 0]". Some images are posters that will be shown full-screen on the masjid's digital display; most others are not. A poster is a self-contained, designed graphic promoting a MASJID event, program, class, majlis, fundraiser, occasion or masjid campaign, with readable text, that makes sense on its own (a program schedule flyer counts).
+THE RULE: if an image is not about a masjid event, program or masjid announcement, it is not a poster. Informational or educational graphics and third-party advertisements are never posters, even when they are nicely designed and appear in the email. For example: "Food Ingredients & Preservatives" guides, halal/haram product lists, health or lifestyle tips, general Islamic reminder graphics unrelated to a specific masjid event, and ads for businesses, products or services.
+NOT posters: anything that fails THE RULE; photos of people, places or past events; logos; newsletter header/footer banners or mastheads; email signatures; social media icons; decorative dividers; images that are only a QR code; and donation bank-detail graphics.
 
 For each poster:
 - imageIndex: the N from its "[Image N]" label

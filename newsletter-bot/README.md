@@ -13,7 +13,7 @@ From a weekly schedule email, the bot publishes:
 
 - **Saying of the Week** is copied word-for-word into `hub_content/saying` (`quote`, `attribution`, `reference`). Each newsletter's saying replaces the last one. The kiosk shows it as a built-in slide, which you turn on in admin under **Ad Reel → Built-in slides**. You can fix the text with its **Edit** button.
 - **Posters** go into the ad reel (`ads`).
-  - Gemini looks at every image in the email and picks out the posters: designed flyers for an event, program, class, fundraiser or occasion. It skips logos, header banners, photos, social icons, QR-only images and bank-detail graphics.
+  - Gemini looks at every image in the email and picks out the posters: designed flyers for a masjid event, program, class, fundraiser or occasion. Anything that isn't a masjid event or announcement (e.g. an informational guide like "Food Ingredients & Preservatives", or a business ad) is skipped. It also skips logos, header banners, photos, social icons, QR-only images and bank-detail graphics.
   - Each poster is uploaded to Cloudinary and goes live in the reel right away, tagged **📧 From newsletter** on admin's Ad Reel page.
   - Each poster is set to expire **7 days** after it's added (`POSTER_EXPIRY_DAYS` in `Code.gs`). To change one poster's expiry, click **Edit** on it in the Ad Reel page and pick a new "Remove automatically on" date, or clear the date to keep it indefinitely.
   - If a later newsletter carries the same flyer again (same file), the existing ad's expiry is pushed out to 7 days from then instead of adding a copy. The bot never shortens an expiry you set, and never adds one back to a poster you cleared.
