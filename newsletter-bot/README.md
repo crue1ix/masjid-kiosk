@@ -71,6 +71,8 @@ The bot uses the same Gemini key the admin page does: `admin_config/gemini` → 
 
 ## Day-to-day
 
+- **Submission alerts:** the same script emails `SUBMISSION_NOTIFY_EMAIL` (info@masjidalhayy.org) when someone uses the public form (`portal.html`). The `notifySubmissions` timer runs every 5 minutes, sends one email per new submission, then stamps it with `notifiedAt` so it's never sent twice. Replying to the email goes to the person who submitted. Submissions older than 3 days are never emailed. Run `setup` again after updating `Code.gs` to install this timer. The email comes from the bot's Gmail account, so ask the masjid to check spam the first time and mark it "not spam".
+
 - **Only the weekly schedule email is used, and the AI decides which email that is.** The masjid sends other emails from the same address too, such as one-off event reminders, fundraising appeals and condolence notices. The subject line isn't fixed, so Gemini reads each email and decides whether it's the weekly schedule newsletter.
   - If it isn't, **nothing** from that email is published: no program days, announcements, posters or saying. The email gets the `kiosk-ignored` label in Gmail and isn't checked again.
   - Admin → Settings → Newsletter bot shows the last ignored email and Gemini's reason.

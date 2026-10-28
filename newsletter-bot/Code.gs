@@ -71,6 +71,10 @@ const CLOUDINARY_UPLOAD_PRESET = 'adzamszc';
 const POSTER_EXPIRY_DAYS = 7;
 const POSTER_DURATION_SECONDS = 8;
 
+// Who gets an email when someone uses the public submission form.
+const SUBMISSION_NOTIFY_EMAIL = 'info@masjidalhayy.org';
+const SUBMISSION_NOTIFY_MAX_AGE_DAYS = 3;
+
 const LABEL_PROCESSED = 'kiosk-processed';
 const LABEL_FAILED = 'kiosk-failed';
 // Emails Gemini judged not to be the weekly schedule — nothing published.
@@ -88,14 +92,15 @@ function setup() {
   GmailApp.getUserLabelByName(LABEL_IGNORED) || GmailApp.createLabel(LABEL_IGNORED);
 
   ScriptApp.getProjectTriggers()
-    .filter(t => t.getHandlerFunction() === 'processNewsletters')
+    .filter(t => ['processNewsletters', 'notifySubmissions'].indexOf(t.getHandlerFunction()) !== -1)
     .forEach(t => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('processNewsletters').timeBased().everyMinutes(30).create();
+  ScriptApp.newTrigger('notifySubmissions').timeBased().everyMinutes(5).create();
 
   // Fails loudly now (rather than on the first timer run) if the service
   // account or Gemini key isn't set up right.
   getGeminiApiKey_(getFirestoreToken_());
-  Logger.log('Setup complete — processNewsletters will run every 30 minutes.');
+  Logger.log('Setup complete — processNewsletters will run every 30 minutes, notifySubmissions every 5.');
 }
 
 // Timer entry point. Also safe to run by hand.
@@ -190,6 +195,50 @@ function processNewsletters() {
     status.lastIgnoredAt = new Date();
   }
   patchDoc_(token, 'admin_config/newsletter_status', status, Object.keys(status));
+}
+
+// Emails the masjid about each new public-form submission (portal.html).
+// Runs on its own 5-minute timer. Each submission is marked with
+// notifiedAt once sent, so it's emailed exactly once. Submissions older
+// than SUBMISSION_NOTIFY_MAX_AGE_DAYS are never emailed (so turning this
+// on doesn't blast out old ones). Replying to the email goes to the sender.
+function notifySubmissions() {
+  const token = getFirestoreToken_();
+  const cutoff = Date.now() - SUBMISSION_NOTIFY_MAX_AGE_DAYS * 24 * 60 * 60 * 1000;
+  listCollection_(token, 'submissions')
+    .filter(s => s.status === 'pending' && !s.notifiedAt && s.createdAt instanceof Date && s.createdAt.getTime() >= cutoff)
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .forEach(s => {
+      try {
+        const clean = v => String(v || '').replace(/[\r\n]+/g, ' ').trim();
+        const body = [
+          'A new ad was submitted through the Digital Signage form.',
+          '',
+          `Title: ${clean(s.title)}`,
+          `Type: ${s.type === 'video' ? 'Video' : 'Image'}`,
+          `Show from: ${clean(s.requestedStart)}`,
+          `Show until: ${clean(s.requestedEnd)}`,
+          '',
+          `Name: ${clean(s.clientName)}`,
+          `Business / organization: ${clean(s.organization)}`,
+          `Email: ${clean(s.email)}`,
+          `Phone: ${clean(s.phone)}`,
+          '',
+          `Notes: ${String(s.notes || '').trim() || '(none)'}`,
+          '',
+          `File: ${s.url}`,
+          '',
+          'Review it in the admin page: Ad Reel > Client submissions.'
+        ].join('\n');
+        const options = { name: 'Masjid Digital Signage' };
+        if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(s.email))) options.replyTo = clean(s.email);
+        GmailApp.sendEmail(SUBMISSION_NOTIFY_EMAIL, `New digital signage submission: ${clean(s.title) || clean(s.organization)}`, body, options);
+        patchDoc_(token, `submissions/${s.id}`, { notifiedAt: new Date() }, ['notifiedAt']);
+        Logger.log(`Emailed ${SUBMISSION_NOTIFY_EMAIL} about submission "${clean(s.title)}".`);
+      } catch (err) {
+        Logger.log(`Notify failed for submission ${s.id}: ${err.message}`);
+      }
+    });
 }
 
 // Saved after every published email too, so a run cut off by the
