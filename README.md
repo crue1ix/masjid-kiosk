@@ -131,6 +131,12 @@ goes on the reel (it stays hidden on the kiosk until the From date), and
 list (filter: **From clients**). Since senders have no account they can't
 track status or send revisions — reply to them by email instead.
 
+Each new submission also emails **info@masjidalhayy.org** (sent through
+[FormSubmit](https://formsubmit.co), free, no setup in this repo). The very
+first time, FormSubmit sends an activation email to that address — click its
+confirm link once, or no alerts will arrive. Change the recipient via
+`NOTIFY_EMAIL` in `portal.js`.
+
 After updating, re-paste `firestore.rules` into the Firebase console so the
 public form is allowed to write submissions. (The old **Client accounts** tab
 only matters for sign-ups made before this change.)

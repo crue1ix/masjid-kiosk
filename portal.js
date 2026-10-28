@@ -40,6 +40,34 @@ function showToast(msg, type = 'success') {
    ============================================================ */
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
 
+// New-submission alert. FormSubmit.co relays the POST as an email, no backend
+// needed. Fire-and-forget: the submission is already saved, so a failed email
+// must never show the visitor an error.
+const NOTIFY_EMAIL = 'info@masjidalhayy.org';
+
+function notifyByEmail(sub) {
+  fetch('https://formsubmit.co/ajax/' + NOTIFY_EMAIL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      _subject: `New digital signage submission: ${sub.title || sub.organization}`,
+      _template: 'table',
+      _captcha: 'false',
+      Title: sub.title,
+      Type: sub.type,
+      Name: sub.clientName,
+      Organization: sub.organization,
+      Email: sub.email,
+      Phone: sub.phone,
+      'Show from': sub.requestedStart,
+      'Show until': sub.requestedEnd,
+      Notes: sub.notes || '(none)',
+      File: sub.url,
+      Review: 'Open the admin page → Ad Reel → Client submissions'
+    })
+  }).catch(() => {});
+}
+
 function validateUploadFile(file) {
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
     return 'Only image or video files are supported.';
@@ -201,6 +229,7 @@ $('submit-form').addEventListener('submit', e => {
         createdAt: firebase.firestore.FieldValue.serverTimestamp()
       };
       await db.collection('submissions').add(doc);
+      notifyByEmail(doc);
       resetSubmitForm();
       showDone(true);
       window.scrollTo(0, 0);
