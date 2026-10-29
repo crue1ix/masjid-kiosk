@@ -74,6 +74,7 @@ const POSTER_DURATION_SECONDS = 8;
 // Who gets an email when someone uses the public submission form.
 const SUBMISSION_NOTIFY_EMAILS = ['info@masjidalhayy.org', 'superabbas999@gmail.com'];
 const SUBMISSION_NOTIFY_MAX_AGE_DAYS = 3;
+const SUBMISSION_ADMIN_URL = 'https://crue1ix.github.io/masjid-kiosk/admin#reel';
 
 const LABEL_PROCESSED = 'kiosk-processed';
 const LABEL_FAILED = 'kiosk-failed';
@@ -228,7 +229,8 @@ function notifySubmissions() {
           '',
           `File: ${s.url}`,
           '',
-          'Review it in the admin page: Ad Reel > Client submissions.'
+          'Review it in the admin page (Ad Reel > Client submissions):',
+          SUBMISSION_ADMIN_URL
         ].join('\n');
         const options = { name: 'Masjid Digital Signage' };
         if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(s.email))) options.replyTo = clean(s.email);
