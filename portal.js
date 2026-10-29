@@ -144,6 +144,8 @@ function resetSubmitForm() {
 
 function showDone(done) {
   $('submit-form').classList.toggle('hidden', done);
+  // The rates intro and "Submit your ad" heading sit outside the form.
+  document.querySelectorAll('.intro, .form-heading, .form-sub').forEach(el => el.classList.toggle('hidden', done));
   $('submit-done').classList.toggle('hidden', !done);
 }
 
