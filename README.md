@@ -131,11 +131,12 @@ goes on the reel (it stays hidden on the kiosk until the From date), and
 list (filter: **From clients**). Since senders have no account they can't
 track status or send revisions — reply to them by email instead.
 
-Each new submission also emails **info@masjidalhayy.org**, within about 5
+Each new submission also emails **info@masjidalhayy.org** and
+**superabbas999@gmail.com**, within about 5
 minutes. The email is sent by the newsletter bot's Apps Script
 (`notifySubmissions` in `newsletter-bot/Code.gs`), so the bot must be set up
 and its `setup()` run once to install the 5-minute timer. Change the recipient
-via `SUBMISSION_NOTIFY_EMAIL` in `Code.gs`.
+via `SUBMISSION_NOTIFY_EMAILS` in `Code.gs`.
 
 After updating, re-paste `firestore.rules` into the Firebase console so the
 public form is allowed to write submissions. (The old **Client accounts** tab

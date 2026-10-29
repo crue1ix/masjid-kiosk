@@ -38,16 +38,45 @@ function showToast(msg, type = 'success') {
 /* ============================================================
    SUBMIT — upload to Cloudinary, then write the submission doc
    ============================================================ */
-const MAX_UPLOAD_BYTES = 100 * 1024 * 1024; // 100MB
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024; // 100MB
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;  // Cloudinary's free plan rejects larger images
+const MAX_IMAGE_EDGE = 3840;               // the kiosk screen is 3840 x 2160, so more pixels are wasted
+
+// The file that actually gets uploaded: the chosen file, or a shrunk copy
+// of it when an image is over MAX_IMAGE_BYTES. null while still shrinking.
+let uploadFile = null;
+let preparingFile = false;
 
 function validateUploadFile(file) {
   if (!file.type.startsWith('image/') && !file.type.startsWith('video/')) {
     return 'Only image or video files are supported.';
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `File is too large (${formatBytes(file.size)}). Max size is ${formatBytes(MAX_UPLOAD_BYTES)}.`;
+  if (file.type.startsWith('video/') && file.size > MAX_VIDEO_BYTES) {
+    return `File is too large (${formatBytes(file.size)}). Max size for videos is ${formatBytes(MAX_VIDEO_BYTES)}.`;
   }
   return null;
+}
+
+// Redraws a big image as a JPEG (at most MAX_IMAGE_EDGE px on the long
+// side) at the highest quality that fits under MAX_IMAGE_BYTES.
+// Transparent areas become white, since JPEG has no transparency.
+async function shrinkImage(file) {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.92, 0.85, 0.75, 0.65, 0.5]) {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (blob && blob.size <= MAX_IMAGE_BYTES) {
+      return new File([blob], file.name.replace(/\.[^.]+$/, '') + '.jpg', { type: 'image/jpeg' });
+    }
+  }
+  throw new Error('too big');
 }
 
 function showUploadError(msg) {
@@ -61,6 +90,8 @@ function updateUploadPreview(file) {
   const preview = $('upload-preview');
   const thumb = $('upload-preview-thumb');
 
+  uploadFile = null;
+  preparingFile = false;
   if (!file) {
     hint.classList.remove('hidden');
     preview.classList.add('hidden');
@@ -69,15 +100,38 @@ function updateUploadPreview(file) {
     return;
   }
 
-  showUploadError(validateUploadFile(file));
+  const problem = validateUploadFile(file);
+  showUploadError(problem);
+  const isVideo = file.type.startsWith('video');
   const objectUrl = URL.createObjectURL(file);
-  thumb.innerHTML = file.type.startsWith('video')
+  thumb.innerHTML = isVideo
     ? `<video src="${objectUrl}" muted></video>`
     : `<img src="${objectUrl}" alt="">`;
   $('upload-preview-name').textContent = file.name;
-  $('upload-preview-meta').textContent = `${file.type.startsWith('video') ? 'Video' : 'Image'} · ${formatBytes(file.size)} · click to change`;
+  const meta = $('upload-preview-meta');
+  meta.textContent = `${isVideo ? 'Video' : 'Image'} · ${formatBytes(file.size)} · click to change`;
   hint.classList.add('hidden');
   preview.classList.remove('hidden');
+  if (problem) return;
+
+  if (isVideo || file.size <= MAX_IMAGE_BYTES) {
+    uploadFile = file;
+    return;
+  }
+  // Over the image limit: shrink it. `file` is checked again afterwards in
+  // case a different file was picked while this one was being shrunk.
+  preparingFile = true;
+  meta.textContent = `Image · ${formatBytes(file.size)} · shrinking for upload…`;
+  shrinkImage(file).then(small => {
+    if (fileInput.files[0] !== file) return;
+    uploadFile = small;
+    preparingFile = false;
+    meta.textContent = `Image · ${formatBytes(small.size)} (shrunk from ${formatBytes(file.size)}) · click to change`;
+  }).catch(() => {
+    if (fileInput.files[0] !== file) return;
+    preparingFile = false;
+    showUploadError(`Couldn't shrink this image (${formatBytes(file.size)}). Please save it as a smaller JPG or PNG and try again.`);
+  });
 }
 
 function resetSubmitForm() {
@@ -125,9 +179,13 @@ $('submit-form').addEventListener('submit', e => {
   e.preventDefault();
   if ($('submit-website').value) return; // honeypot — a bot filled it in
 
-  const file = fileInput.files[0];
+  if (preparingFile) {
+    showToast('Still shrinking your image — try again in a moment.', 'error');
+    return;
+  }
+  const file = uploadFile;
   if (!file) {
-    showToast('Choose a file first.', 'error');
+    showToast(fileInput.files[0] ? 'There\'s a problem with the chosen file — see the message above.' : 'Choose a file first.', 'error');
     return;
   }
   const validationError = validateUploadFile(file);
@@ -227,7 +285,9 @@ $('submit-form').addEventListener('submit', e => {
 
   xhr.onload = () => {
     if (xhr.status < 200 || xhr.status >= 300) {
-      showToast('Upload failed. Please try again.', 'error');
+      let reason = '';
+      try { reason = JSON.parse(xhr.responseText).error.message; } catch (e) { /* not JSON */ }
+      showToast('Upload failed' + (reason ? ': ' + reason : '. Please try again.'), 'error');
       $('btn-submit').disabled = false;
       return;
     }

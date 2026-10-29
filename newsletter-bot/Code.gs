@@ -72,7 +72,7 @@ const POSTER_EXPIRY_DAYS = 7;
 const POSTER_DURATION_SECONDS = 8;
 
 // Who gets an email when someone uses the public submission form.
-const SUBMISSION_NOTIFY_EMAIL = 'info@masjidalhayy.org';
+const SUBMISSION_NOTIFY_EMAILS = ['info@masjidalhayy.org', 'superabbas999@gmail.com'];
 const SUBMISSION_NOTIFY_MAX_AGE_DAYS = 3;
 
 const LABEL_PROCESSED = 'kiosk-processed';
@@ -232,9 +232,9 @@ function notifySubmissions() {
         ].join('\n');
         const options = { name: 'Masjid Digital Signage' };
         if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(s.email))) options.replyTo = clean(s.email);
-        GmailApp.sendEmail(SUBMISSION_NOTIFY_EMAIL, `New digital signage submission: ${clean(s.title) || clean(s.organization)}`, body, options);
+        GmailApp.sendEmail(SUBMISSION_NOTIFY_EMAILS.join(','), `New digital signage submission: ${clean(s.title) || clean(s.organization)}`, body, options);
         patchDoc_(token, `submissions/${s.id}`, { notifiedAt: new Date() }, ['notifiedAt']);
-        Logger.log(`Emailed ${SUBMISSION_NOTIFY_EMAIL} about submission "${clean(s.title)}".`);
+        Logger.log(`Emailed ${SUBMISSION_NOTIFY_EMAILS.join(', ')} about submission "${clean(s.title)}".`);
       } catch (err) {
         Logger.log(`Notify failed for submission ${s.id}: ${err.message}`);
       }
